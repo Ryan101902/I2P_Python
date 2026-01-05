@@ -1,0 +1,19 @@
+# CS101 - Building Location-Based Systems with Python
+# Required packages for the course
+
+# HTTP client for API calls (Weeks 4-7)
+requests>=2.28.0
+
+# Web framework (Week 13+)
+flask>=2.3.0
+
+# Interactive map generation (Week 14+)
+folium>=0.14.0
+
+# Optional but recommended
+# --------------------------
+# For Jupyter notebook support (useful for lectures)
+jupyter>=1.0.0
+
+# For data manipulation (helpful for exercises)
+# pandas>=2.0.0
