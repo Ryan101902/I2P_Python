@@ -18,6 +18,10 @@ By the end of this lecture, students will be able to:
 - Understanding of the `requests` library
 - Basic JSON parsing knowledge
 
+### Why This Matters
+
+In real-world programming, you rarely work with clean, predictable data. APIs return messy, inconsistent responses. Networks fail. Users enter unexpected inputs. This week, we'll learn to write **defensive code** that handles these challenges gracefully.
+
 ---
 
 # Hour 1: Deep Dive into Nominatim
@@ -38,12 +42,70 @@ By the end of this lecture, students will be able to:
 └─────────────────────────┘                     └─────────────────────┘
 ```
 
+### Think of it Like a Dictionary
+
+- **Geocoding** is like looking up a word to find its definition
+  - Input: "Taipei 101" (the word)
+  - Output: (25.0339, 121.5645) (the definition)
+
+- **Reverse Geocoding** is like looking up a definition to find the word
+  - Input: (25.0339, 121.5645) (the definition)
+  - Output: "Taipei 101, Xinyi Road..." (the word)
+
 ### Why is Geocoding Important?
 
-1. **Maps & Navigation**: Convert "Starbucks near me" to actual locations
-2. **Data Analysis**: Plot addresses on maps for visualization
-3. **Location Services**: Find nearby restaurants, hospitals, etc.
-4. **Logistics**: Calculate delivery routes from addresses
+Geocoding is **everywhere** in modern applications:
+
+1. **Maps & Navigation**
+   - When you type "Starbucks near me" in Google Maps
+   - The app geocodes "Starbucks" to find coordinates of nearby locations
+
+2. **Food Delivery Apps**
+   - You enter "123 Main Street"
+   - The app converts it to coordinates to show you on a map and calculate delivery routes
+
+3. **Data Analysis & Visualization**
+   - A company has 10,000 customer addresses
+   - Geocoding converts them to coordinates for plotting on a heat map
+
+4. **Location-Based Services**
+   - "Find hospitals within 5km"
+   - First geocode your location, then search for hospitals near those coordinates
+
+5. **Logistics & Shipping**
+   - Delivery companies geocode addresses to optimize routes
+   - Calculate distances between warehouses and destinations
+
+### The Geocoding Process (Behind the Scenes)
+
+When you geocode "Taipei 101", the service:
+
+1. **Parses** your query to understand what you're looking for
+2. **Searches** a massive database of places and addresses
+3. **Ranks** results by relevance (importance score)
+4. **Returns** the best matches with coordinates
+
+```
+User Query: "Taipei 101"
+    │
+    ▼
+┌─────────────────────┐
+│  Query Parser       │  → Understands: building name, Taiwan
+└─────────────────────┘
+    │
+    ▼
+┌─────────────────────┐
+│  Database Search    │  → Finds: 3 possible matches
+└─────────────────────┘
+    │
+    ▼
+┌─────────────────────┐
+│  Ranking Algorithm  │  → Best match: Taipei 101 Tower (importance: 0.68)
+└─────────────────────┘
+    │
+    ▼
+Result: lat=25.0339, lon=121.5645
+```
 
 ---
 
@@ -51,92 +113,181 @@ By the end of this lecture, students will be able to:
 
 **Nominatim** (Latin for "by name") is the search engine for OpenStreetMap data.
 
-### Key Features
+### What is OpenStreetMap?
 
-| Feature | Description |
-|---------|-------------|
-| **Free** | No cost for reasonable usage |
-| **Global** | Covers the entire world |
-| **Open Data** | Based on community-contributed OpenStreetMap |
-| **No API Key** | Just requires proper User-Agent |
-| **Multiple Formats** | JSON, XML, HTML output |
+OpenStreetMap (OSM) is like **Wikipedia for maps**:
+- **Community-driven**: Volunteers worldwide add and update map data
+- **Free and open**: Anyone can use the data
+- **Comprehensive**: Contains streets, buildings, parks, businesses, and more
+- **Global coverage**: Maps the entire world
+
+### Why Use Nominatim?
+
+| Feature | Description | Why It Matters |
+|---------|-------------|----------------|
+| **Free** | No cost for reasonable usage | Perfect for learning and small projects |
+| **No API Key** | Just needs proper User-Agent | Easy to get started |
+| **Global Coverage** | Entire world mapped | Works for any location |
+| **Open Data** | Community-contributed | Transparent, improvable |
+| **Multiple Formats** | JSON, XML, HTML | Flexible for different needs |
+
+### Nominatim vs Commercial Geocoders
+
+| Aspect | Nominatim | Google/Mapbox |
+|--------|-----------|---------------|
+| **Cost** | Free | Paid (after free tier) |
+| **Setup** | User-Agent only | API key required |
+| **Rate Limit** | 1 req/second | Higher limits |
+| **Accuracy** | Good (varies by region) | Generally better |
+| **Support** | Community | Professional |
+
+**For learning**: Nominatim is perfect—it's free, easy to use, and teaches real-world API concepts.
 
 ### Nominatim Endpoints
 
-| Endpoint | Purpose | Example Use |
+An **endpoint** is a specific URL path that performs a particular function:
+
+| Endpoint | Purpose | When to Use |
 |----------|---------|-------------|
-| `/search` | Geocoding (name → coords) | Find "Taipei 101" |
-| `/reverse` | Reverse geocoding (coords → name) | What's at (25.03, 121.56)? |
+| `/search` | Geocoding (name → coords) | "Where is Taipei 101?" |
+| `/reverse` | Reverse geocoding (coords → name) | "What's at 25.03, 121.56?" |
 | `/lookup` | Look up by OSM ID | Get details for a specific place |
 | `/status` | Check server status | Is the service running? |
+
+We'll focus on `/search` and `/reverse` in this course.
 
 ---
 
 ## 1.3 The Search Endpoint in Detail
 
-### Basic Request
+### Basic Request Structure
+
+Let's break down a geocoding request step by step:
 
 ```python
 import requests
 
+# Step 1: Define the API endpoint URL
 url = "https://nominatim.openstreetmap.org/search"
 
+# Step 2: Define what we're searching for (query parameters)
 params = {
-    "q": "Taipei 101",
-    "format": "json"
+    "q": "Taipei 101",      # The search query
+    "format": "json"        # We want JSON response
 }
 
+# Step 3: Identify ourselves (REQUIRED by Nominatim)
 headers = {
     "User-Agent": "CS101-Geocoder/1.0 (cs101@university.edu)"
 }
 
+# Step 4: Make the request
 response = requests.get(url, params=params, headers=headers, timeout=10)
+
+# Step 5: Parse the JSON response
 results = response.json()
+
+# Step 6: Use the results
+if results:
+    place = results[0]
+    print(f"Found: {place['display_name']}")
+    print(f"Coordinates: ({place['lat']}, {place['lon']})")
 ```
 
+### Understanding Each Step
+
+**Step 1 - The URL**: This is the "address" of the API endpoint. Think of it like a phone number for a specific service.
+
+**Step 2 - Query Parameters**: These tell the API what you want:
+- `q` = "query" = what you're searching for
+- `format` = what format you want the response in
+
+**Step 3 - Headers**: Metadata about your request. The User-Agent identifies who you are (required by Nominatim to prevent abuse).
+
+**Step 4 - The Request**: `requests.get()` sends your request to the server and waits for a response. The `timeout=10` means "give up after 10 seconds".
+
+**Step 5 - Parse JSON**: Convert the response text into Python data structures (lists and dictionaries).
+
+**Step 6 - Use Results**: Check if we got results and extract the data we need.
+
 ### All Search Parameters
+
+Nominatim accepts many parameters to customize your search:
+
+#### Basic Parameters
 
 | Parameter | Type | Description | Example |
 |-----------|------|-------------|---------|
 | `q` | string | Free-form search query | `"Taipei 101"` |
 | `format` | string | Output format | `"json"`, `"jsonv2"`, `"xml"` |
 | `limit` | int | Maximum results (1-50) | `5` |
+
+#### Detail Parameters
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
 | `addressdetails` | 0/1 | Include address breakdown | `1` |
 | `extratags` | 0/1 | Include additional OSM tags | `1` |
 | `namedetails` | 0/1 | Include all name variants | `1` |
+
+#### Geographic Filtering
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
 | `countrycodes` | string | Limit to countries (ISO codes) | `"tw,jp"` |
 | `viewbox` | string | Bounding box preference | `"lon1,lat1,lon2,lat2"` |
 | `bounded` | 0/1 | Strict viewbox limit | `1` |
-| `polygon_geojson` | 0/1 | Include boundary geometry | `1` |
-| `dedupe` | 0/1 | Remove duplicates | `1` |
 
-### Structured Search (Alternative)
-
-Instead of free-form `q`, you can use structured parameters:
+### Example: Search with Multiple Parameters
 
 ```python
 params = {
-    "street": "Section 5, Xinyi Road",
+    "q": "coffee shop",
+    "format": "json",
+    "limit": 5,                    # Get up to 5 results
+    "countrycodes": "tw",          # Only Taiwan
+    "addressdetails": 1,           # Include address breakdown
+    "viewbox": "121.5,25.0,121.6,25.1",  # Taipei area
+    "bounded": 1                   # Strict - only within viewbox
+}
+```
+
+**What this does**:
+- Searches for "coffee shop"
+- Returns up to 5 results
+- Only in Taiwan
+- Only within the Taipei area bounding box
+- Includes detailed address information
+
+### Structured Search (Alternative)
+
+Instead of a free-form query (`q`), you can search by address components:
+
+```python
+# Free-form (less precise)
+params = {"q": "7 Section 5 Xinyi Road Taipei Taiwan", "format": "json"}
+
+# Structured (more precise)
+params = {
+    "street": "7 Section 5 Xinyi Road",
     "city": "Taipei",
     "country": "Taiwan",
     "format": "json"
 }
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `street` | Street address |
-| `city` | City name |
-| `county` | County/district |
-| `state` | State/province |
-| `country` | Country name |
-| `postalcode` | ZIP/postal code |
+**When to use structured search**:
+- When you have clean, separated address components
+- When you need more precise results
+- When free-form search gives unexpected results
 
 ---
 
 ## 1.4 Understanding the Response Structure
 
-A Nominatim search returns a **list of place objects**:
+When you make a search request, Nominatim returns a **list of place objects**. Let's examine the response in detail:
+
+### Sample Response
 
 ```json
 [
@@ -155,34 +306,91 @@ A Nominatim search returns a **list of place objects**:
         "name": "台北101",
         "display_name": "台北101, 7, Section 5, Xinyi Road, Xinyi District, Taipei, 110, Taiwan",
         "boundingbox": ["25.0329639", "25.0349639", "121.5634722", "121.5654722"]
-    },
-    ...
+    }
 ]
 ```
 
 ### Key Fields Explained
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `place_id` | int | Unique ID in Nominatim database |
-| `osm_type` | string | OpenStreetMap type: "node", "way", "relation" |
-| `osm_id` | int | ID in OpenStreetMap database |
-| `lat` | string | Latitude (as string!) |
-| `lon` | string | Longitude (as string!) |
-| `class` | string | OSM classification (tourism, amenity, etc.) |
-| `type` | string | Specific type (attraction, restaurant, etc.) |
-| `importance` | float | Relevance score (0-1) |
-| `display_name` | string | Full formatted address |
-| `boundingbox` | list | Geographic bounding box [s, n, w, e] |
+Let's understand what each field means:
 
-### Important: Lat/Lon Are Strings!
+#### Identification Fields
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `place_id` | int | Unique ID in Nominatim's database | `297611768` |
+| `osm_id` | int | ID in OpenStreetMap database | `55284753` |
+| `osm_type` | string | Type in OSM | `"way"` |
+
+**Understanding `osm_type`**:
+- `"node"` = A single point (e.g., a café, ATM)
+- `"way"` = A line or polygon (e.g., a road, building outline)
+- `"relation"` = A complex structure (e.g., a transit route, administrative boundary)
+
+Taipei 101 is a `"way"` because it's represented as a building outline (polygon).
+
+#### Location Fields
+
+| Field | Type | Description | Note |
+|-------|------|-------------|------|
+| `lat` | **string** | Latitude | **Must convert to float!** |
+| `lon` | **string** | Longitude | **Must convert to float!** |
+| `boundingbox` | list | Geographic extent | [south, north, west, east] |
+
+**Critical Warning**: `lat` and `lon` are **strings**, not numbers!
 
 ```python
-# WRONG - will fail if you try math operations
-lat = result["lat"]  # "25.0339639" (string)
+# WRONG - lat is a string!
+result["lat"] + 1  # TypeError: can only concatenate str to str
 
-# CORRECT - convert to float
-lat = float(result["lat"])  # 25.0339639 (float)
+# CORRECT - convert to float first
+float(result["lat"]) + 1  # Works: 26.0339639
+```
+
+#### Classification Fields
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `class` | string | Broad category | `"tourism"`, `"amenity"`, `"highway"` |
+| `type` | string | Specific type | `"attraction"`, `"restaurant"`, `"bus_stop"` |
+| `addresstype` | string | How it fits in an address | `"tourism"`, `"road"` |
+
+**Common class/type combinations**:
+- `tourism:attraction` - Tourist attractions
+- `amenity:restaurant` - Restaurants
+- `amenity:cafe` - Cafes
+- `highway:bus_stop` - Bus stops
+- `building:yes` - Generic buildings
+
+#### Ranking Fields
+
+| Field | Type | Description | Range |
+|-------|------|-------------|-------|
+| `importance` | float | How notable/famous | 0.0 to 1.0 |
+| `place_rank` | int | Granularity level | 1-30 |
+
+**Understanding `importance`**:
+- Higher = more famous/notable
+- Eiffel Tower: ~0.8
+- Taipei 101: ~0.68
+- Local coffee shop: ~0.2
+
+**Understanding `place_rank`**:
+- Lower = larger/more important administratively
+- Country: ~4
+- City: ~16
+- Building: ~30
+
+#### Display Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Short name |
+| `display_name` | string | Full formatted address |
+
+```python
+result["name"]         # "台北101"
+result["display_name"] # "台北101, 7, Section 5, Xinyi Road, Xinyi District, Taipei, 110, Taiwan"
 ```
 
 ---
@@ -210,6 +418,11 @@ response_data = [
 # 3. The type and class combined as "class:type"
 ```
 
+**Think about**:
+- What if the list is empty?
+- What if `lat` or `lon` is missing?
+- What type are `lat` and `lon`?
+
 <details>
 <summary>Solution</summary>
 
@@ -226,23 +439,26 @@ response_data = [
     }
 ]
 
-# Check if we have results
+# First, check if we have any results
 if response_data:
+    # Get the first result
     place = response_data[0]
 
-    # 1. Display name
+    # 1. Display name - simple dictionary access
     name = place["display_name"]
     print(f"Name: {name}")
 
-    # 2. Coordinates as tuple of floats
-    coords = (float(place["lat"]), float(place["lon"]))
+    # 2. Coordinates - must convert strings to floats!
+    lat = float(place["lat"])
+    lon = float(place["lon"])
+    coords = (lat, lon)
     print(f"Coordinates: {coords}")
 
-    # 3. Class and type
+    # 3. Class and type combined
     category = f"{place['class']}:{place['type']}"
     print(f"Category: {category}")
 else:
-    print("No results!")
+    print("No results found!")
 
 # Output:
 # Name: Taipei Main Station, Zhongzheng District, Taipei, Taiwan
@@ -250,23 +466,28 @@ else:
 # Category: railway:station
 ```
 
+**Key points**:
+1. Always check if `response_data` is not empty before accessing `[0]`
+2. Convert `lat` and `lon` from strings to floats
+3. Use f-strings to combine values
+
 </details>
 
 ---
 
 ## 1.6 Address Details Response
 
-When you add `addressdetails=1`:
+When you add `addressdetails=1` to your request:
 
 ```python
 params = {
     "q": "Taipei 101",
     "format": "json",
-    "addressdetails": 1
+    "addressdetails": 1  # Include address breakdown
 }
 ```
 
-The response includes a nested `address` object:
+The response includes a nested `address` object with structured information:
 
 ```json
 {
@@ -286,23 +507,74 @@ The response includes a nested `address` object:
 }
 ```
 
-### Parsing Nested Address
+### Understanding the Address Object
+
+The `address` object contains **components** of the address, but the keys vary depending on the place type:
+
+**For a tourist attraction (Taipei 101)**:
+```json
+{
+    "tourism": "台北101",        // The name, keyed by class
+    "house_number": "7",
+    "road": "Section 5, Xinyi Road",
+    "suburb": "Xinyi District",  // District/neighborhood
+    "city": "Taipei",
+    "country": "Taiwan"
+}
+```
+
+**For a small village**:
+```json
+{
+    "village": "Some Village",   // No "city" - uses "village"
+    "county": "Some County",
+    "country": "Taiwan"
+    // No road, no suburb!
+}
+```
+
+**This inconsistency is a major challenge** we'll address in Hour 2.
+
+### Parsing Nested Address Data
+
+Here's a function that handles the nested structure:
 
 ```python
 def parse_address(result: dict) -> dict:
-    """Extract structured address from Nominatim result."""
+    """
+    Extract structured address from Nominatim result.
+
+    Args:
+        result: A single Nominatim result dictionary
+
+    Returns:
+        Dictionary with standardized address fields
+    """
+    # Step 1: Get the address object (or empty dict if missing)
     address = result.get("address", {})
 
+    # Step 2: Extract each component with fallbacks
     return {
+        # Name could be under different keys depending on place type
         "name": result.get("name", address.get("tourism", "Unknown")),
+
+        # Street information
         "street": address.get("road", ""),
         "number": address.get("house_number", ""),
+
+        # Area - try multiple possible keys
         "district": address.get("suburb", address.get("district", "")),
+
+        # City - might be "city", "town", or "village"
         "city": address.get("city", address.get("town", "")),
+
+        # Country info
         "country": address.get("country", ""),
         "postcode": address.get("postcode", "")
     }
 ```
+
+**Key technique**: Use `.get()` with fallback values to handle missing keys.
 
 ---
 
@@ -316,35 +588,67 @@ Stand up, stretch, rest your eyes!
 
 ## 2.1 The Challenge of Real-World JSON
 
-Real API responses are messy:
-- Fields may be **missing**
-- Data types may be **inconsistent**
-- Structures may be **deeply nested**
-- Values may be **null or empty**
+In Week 3, we worked with clean, predictable JSON files that we created ourselves. Real API responses are much messier:
+
+### The Problems You'll Encounter
+
+1. **Missing Fields**: Some responses have fields, others don't
+2. **Inconsistent Types**: Sometimes a field is a string, sometimes null
+3. **Varying Structures**: Different results have different shapes
+4. **Deeply Nested Data**: Data buried many levels deep
+5. **Empty Responses**: Sometimes the API returns nothing
 
 ### Example: Inconsistent Responses
 
+Here are two real Nominatim responses showing how different they can be:
+
 ```python
-# Response for "Taipei 101" (detailed)
+# Response for "Taipei 101" - a major landmark
 {
     "name": "台北101",
+    "display_name": "台北101, 7, Section 5, Xinyi Road, Xinyi District, Taipei, Taiwan",
     "address": {
         "tourism": "台北101",
+        "house_number": "7",
         "road": "Section 5, Xinyi Road",
-        "city": "Taipei"
-    }
+        "suburb": "Xinyi District",
+        "city": "Taipei",
+        "postcode": "110",
+        "country": "Taiwan",
+        "country_code": "tw"
+    },
+    "importance": 0.68
 }
 
-# Response for a small village (sparse)
+# Response for a small village - much sparser
 {
     "name": "Some Village",
+    "display_name": "Some Village, Some County, Taiwan",
     "address": {
         "village": "Some Village",
-        "country": "Taiwan"
+        "county": "Some County",
+        "country": "Taiwan",
+        "country_code": "tw"
     }
-    # No road, no city!
+    # Notice: no road, no city, no postcode, no importance!
 }
 ```
+
+### What Happens If We Don't Handle This?
+
+```python
+# Code that assumes all fields exist
+def get_city(result):
+    return result["address"]["city"]
+
+# Works for Taipei 101
+city = get_city(taipei_101_result)  # "Taipei"
+
+# CRASHES for village
+city = get_city(village_result)     # KeyError: 'city'
+```
+
+**Our goal**: Write code that works for **all** responses, not just the "nice" ones.
 
 ---
 
@@ -352,121 +656,243 @@ Real API responses are messy:
 
 ### The Problem with Direct Access
 
-```python
-# This will crash if "address" is missing!
-city = result["address"]["city"]
+Direct dictionary access (`dict["key"]`) crashes if the key doesn't exist:
 
-# This will crash if result is an empty list!
-first = results[0]
+```python
+result = {"name": "Taipei 101"}
+
+# This works
+name = result["name"]  # "Taipei 101"
+
+# This CRASHES
+city = result["city"]  # KeyError: 'city'
+
+# Nested access - even more dangerous
+city = result["address"]["city"]  # KeyError: 'address'
 ```
 
 ### Solution 1: The `.get()` Method
 
-```python
-# Returns None if key doesn't exist
-city = result.get("address")
+The `.get()` method returns `None` (or a default value) if the key doesn't exist:
 
-# Returns default value if key doesn't exist
+```python
+result = {"name": "Taipei 101"}
+
+# Basic .get() - returns None if missing
+city = result.get("city")
+print(city)  # None
+
+# .get() with default value
 city = result.get("city", "Unknown")
+print(city)  # "Unknown"
 
 # Chained .get() for nested access
+# First get "address" (or empty dict), then get "city" from that
 address = result.get("address", {})
 city = address.get("city", "Unknown")
+print(city)  # "Unknown"
+```
+
+**Why `{}` as the default for nested dicts?**
+
+```python
+# If we use None as default:
+address = result.get("address")  # None
+city = address.get("city")       # AttributeError: 'NoneType' has no attribute 'get'
+
+# If we use {} as default:
+address = result.get("address", {})  # {}
+city = address.get("city", "Unknown")  # "Unknown" - works!
 ```
 
 ### Solution 2: Check Before Access
 
+Use `in` operator or `if` statements to check first:
+
 ```python
+result = {"name": "Taipei 101", "address": {"city": "Taipei"}}
+
 # Check if key exists
 if "address" in result:
     address = result["address"]
     if "city" in address:
         city = address["city"]
+    else:
+        city = "Unknown"
+else:
+    city = "Unknown"
 
 # Check if list is not empty
-if results:
+results = []
+if results:  # Empty list is "falsy"
     first = results[0]
+else:
+    first = None
 ```
+
+**This works but gets verbose** for deeply nested data.
 
 ### Solution 3: Try/Except
 
+Wrap risky code in try/except blocks:
+
 ```python
+result = {"name": "Taipei 101"}
+
 try:
     city = result["address"]["city"]
 except KeyError:
     city = "Unknown"
-except TypeError:  # If result["address"] is None
+except TypeError:  # Handles case where result["address"] is None
     city = "Unknown"
 ```
+
+**When to use each approach**:
+
+| Approach | Use When |
+|----------|----------|
+| `.get()` | Simple, one-level access |
+| `if/in` | You need to do different things based on presence |
+| `try/except` | Deep nesting or when errors are expected |
 
 ---
 
 ## 2.3 Building a Safe Data Extractor
 
-Let's create a function that safely extracts data from nested structures:
+Let's create a **utility function** that safely extracts data from nested structures:
 
 ```python
 def safe_get(data: dict, *keys, default=None):
     """
     Safely get a nested value from a dictionary.
 
+    This function traverses a nested dictionary structure using
+    the provided keys, returning a default value if any key
+    is missing or if we encounter None.
+
     Args:
         data: The dictionary to search
-        *keys: The keys to traverse
+        *keys: The keys to traverse (variable number of arguments)
         default: Value to return if path doesn't exist
 
     Returns:
         The value at the path, or default if not found
 
-    Example:
-        safe_get(result, "address", "city", default="Unknown")
+    Examples:
+        >>> data = {"address": {"city": "Taipei"}}
+        >>> safe_get(data, "address", "city")
+        'Taipei'
+        >>> safe_get(data, "address", "country", default="Unknown")
+        'Unknown'
+        >>> safe_get(data, "missing", "path")
+        None
     """
-    current = data
+    current = data  # Start at the root
 
+    # Traverse each key in the path
     for key in keys:
         if isinstance(current, dict):
+            # If current is a dict, use .get() to safely access
             current = current.get(key)
         elif isinstance(current, list) and isinstance(key, int):
+            # If current is a list and key is an integer, try index access
             try:
                 current = current[key]
             except IndexError:
                 return default
         else:
+            # current is neither dict nor list (or key type mismatch)
             return default
 
+        # If we hit None at any point, return default
         if current is None:
             return default
 
     return current
+```
 
+### How `safe_get` Works (Step by Step)
 
-# Usage
-result = {
-    "address": {
-        "city": "Taipei",
-        "district": "Xinyi"
+Let's trace through an example:
+
+```python
+data = {
+    "result": {
+        "address": {
+            "city": "Taipei"
+        }
     }
 }
 
-city = safe_get(result, "address", "city", default="Unknown")
-print(city)  # "Taipei"
+# Call: safe_get(data, "result", "address", "city")
 
-# Missing key returns default
-state = safe_get(result, "address", "state", default="N/A")
-print(state)  # "N/A"
+# Step 1: current = data (the whole dict)
+# Step 2: key = "result"
+#         current = data.get("result") = {"address": {"city": "Taipei"}}
+# Step 3: key = "address"
+#         current = current.get("address") = {"city": "Taipei"}
+# Step 4: key = "city"
+#         current = current.get("city") = "Taipei"
+# Step 5: Return "Taipei"
+```
+
+Now with a missing key:
+
+```python
+# Call: safe_get(data, "result", "address", "country", default="Unknown")
+
+# Step 1: current = data
+# Step 2: key = "result"
+#         current = {"address": {"city": "Taipei"}}
+# Step 3: key = "address"
+#         current = {"city": "Taipei"}
+# Step 4: key = "country"
+#         current = {"city": "Taipei"}.get("country") = None
+# Step 5: current is None, so return default = "Unknown"
+```
+
+### Using `safe_get` in Practice
+
+```python
+# Raw Nominatim response
+result = {
+    "lat": "25.0339",
+    "lon": "121.5645",
+    "display_name": "Taipei 101, Taipei, Taiwan",
+    "address": {
+        "tourism": "台北101",
+        "city": "Taipei"
+    }
+}
+
+# Safe data extraction
+name = safe_get(result, "name", default=safe_get(result, "display_name", default="Unknown"))
+city = safe_get(result, "address", "city", default="Unknown")
+country = safe_get(result, "address", "country", default="Unknown")
+postcode = safe_get(result, "address", "postcode", default="N/A")
+
+print(f"Name: {name}")       # "Taipei 101, Taipei, Taiwan" (fell back to display_name)
+print(f"City: {city}")       # "Taipei"
+print(f"Country: {country}") # "Unknown"
+print(f"Postcode: {postcode}") # "N/A"
 ```
 
 ---
 
 ## 2.4 Parsing Nominatim Results Robustly
 
-Here's a complete, robust parser for Nominatim results:
+Now let's build a complete, robust parser for Nominatim results:
 
 ```python
-from typing import TypedDict, Optional
+from typing import TypedDict
 
 class GeocodedPlace(TypedDict):
-    """Type definition for a geocoded place."""
+    """
+    Type definition for a geocoded place.
+
+    TypedDict provides documentation and IDE hints about
+    what fields our parsed result will have.
+    """
     name: str
     lat: float
     lon: float
@@ -478,60 +904,88 @@ class GeocodedPlace(TypedDict):
 
 def parse_nominatim_result(result: dict) -> GeocodedPlace:
     """
-    Parse a single Nominatim result into a clean structure.
+    Parse a single Nominatim result into a clean, consistent structure.
+
+    This function handles:
+    - Missing fields (uses sensible defaults)
+    - Type conversion (lat/lon strings to floats)
+    - Data normalization (consistent field names)
 
     Args:
-        result: Raw result from Nominatim API
+        result: Raw result dictionary from Nominatim API
 
     Returns:
-        Cleaned GeocodedPlace dictionary
+        Cleaned GeocodedPlace dictionary with consistent structure
     """
-    # Extract coordinates (convert strings to floats)
+    # Handle coordinates - they come as strings!
+    # Use try/except to handle malformed data
     try:
         lat = float(result.get("lat", 0))
         lon = float(result.get("lon", 0))
     except (ValueError, TypeError):
+        # float() failed - use default coordinates
         lat, lon = 0.0, 0.0
 
-    # Extract importance (with fallback)
+    # Handle importance score
     try:
         importance = float(result.get("importance", 0))
     except (ValueError, TypeError):
         importance = 0.0
 
-    # Build clean result
+    # Build the clean result dictionary
     return {
+        # Name: prefer "name" field, fall back to display_name
         "name": result.get("name", result.get("display_name", "Unknown")),
+
+        # Coordinates (now as floats)
         "lat": lat,
         "lon": lon,
+
+        # Full address string
         "display_name": result.get("display_name", ""),
+
+        # Classification - combine class and type
         "place_type": f"{result.get('class', '')}:{result.get('type', '')}",
+
+        # Ranking
         "importance": importance,
+
+        # Raw address object for further processing
         "address": result.get("address", {})
     }
 
 
 def parse_nominatim_response(response_data: list) -> list[GeocodedPlace]:
     """
-    Parse a full Nominatim response.
+    Parse a complete Nominatim response (list of results).
 
     Args:
-        response_data: List of results from Nominatim
+        response_data: List of results from Nominatim API
 
     Returns:
         List of cleaned GeocodedPlace dictionaries
     """
+    # Handle empty response
     if not response_data:
         return []
 
+    # Parse each result
     return [parse_nominatim_result(r) for r in response_data]
 ```
+
+### Why This Design?
+
+1. **Separation of concerns**: One function for single results, one for the list
+2. **Defensive**: Every field access has a fallback
+3. **Type conversion**: Strings become proper floats
+4. **Consistent output**: Same fields regardless of input variations
+5. **Documented**: TypedDict shows exactly what we return
 
 ---
 
 ## 2.5 Mini-Exercise 2: Handle Missing Data
 
-Write a function that extracts a formatted address from a Nominatim result, handling all possible missing fields:
+Write a function that formats an address from a Nominatim result, handling all possible missing fields:
 
 ```python
 def format_address(result: dict) -> str:
@@ -546,12 +1000,15 @@ def format_address(result: dict) -> str:
         "7 Section 5 Xinyi Road, Xinyi, Taipei, Taiwan"
         "Shibuya, Tokyo, Japan"  (no street)
         "Taiwan"  (only country)
+        "Unknown location"  (nothing available)
     """
     # Your code here
     pass
+```
 
+**Test cases to handle:**
 
-# Test with various results
+```python
 test_cases = [
     # Complete address
     {
@@ -580,11 +1037,10 @@ test_cases = [
     # Empty address
     {
         "address": {}
-    }
+    },
+    # No address field at all
+    {}
 ]
-
-for case in test_cases:
-    print(format_address(case))
 ```
 
 <details>
@@ -594,55 +1050,77 @@ for case in test_cases:
 def format_address(result: dict) -> str:
     """
     Format an address from Nominatim result.
+    Handles missing fields gracefully.
     """
+    # Step 1: Get the address object (empty dict if missing)
     address = result.get("address", {})
 
-    # Build street part
+    # Step 2: Build the street part
     street_parts = []
     if address.get("house_number"):
         street_parts.append(address["house_number"])
     if address.get("road"):
         street_parts.append(address["road"])
-    street = " ".join(street_parts)
+    street = " ".join(street_parts)  # Combine with space
 
-    # Collect all parts
+    # Step 3: Collect all address parts
     parts = []
 
+    # Add street if we have it
     if street:
         parts.append(street)
 
-    # Try different keys for district
+    # District - try multiple possible keys
+    # (Nominatim uses different keys in different regions)
     district = (address.get("suburb") or
                 address.get("district") or
-                address.get("neighbourhood"))
+                address.get("neighbourhood") or
+                address.get("quarter"))
     if district:
         parts.append(district)
 
-    # Try different keys for city
+    # City - also has multiple possible keys
     city = (address.get("city") or
             address.get("town") or
             address.get("village") or
-            address.get("municipality"))
+            address.get("municipality") or
+            address.get("county"))
     if city:
         parts.append(city)
 
+    # State/Province (common in US, Australia)
+    state = address.get("state")
+    if state:
+        parts.append(state)
+
+    # Country (almost always present)
     if address.get("country"):
         parts.append(address["country"])
 
-    # Join with commas, or return "Unknown" if empty
-    return ", ".join(parts) if parts else "Unknown location"
+    # Step 4: Join parts or return default
+    if parts:
+        return ", ".join(parts)
+    else:
+        return "Unknown location"
 
 
 # Test
-for case in test_cases:
-    print(format_address(case))
+for i, case in enumerate(test_cases):
+    print(f"Case {i + 1}: {format_address(case)}")
 
 # Output:
-# 7 Section 5 Xinyi Road, Xinyi District, Taipei, Taiwan
-# Shibuya, Tokyo, Japan
-# Taiwan
-# Unknown location
+# Case 1: 7 Section 5 Xinyi Road, Xinyi District, Taipei, Taiwan
+# Case 2: Shibuya, Tokyo, Japan
+# Case 3: Taiwan
+# Case 4: Unknown location
+# Case 5: Unknown location
 ```
+
+**Key techniques used:**
+1. `result.get("address", {})` - Safe access with empty dict default
+2. `address.get("key")` - Returns None if missing
+3. `or` chaining - Try multiple keys, use first non-empty
+4. Build list then join - Easier than string concatenation
 
 </details>
 
@@ -658,6 +1136,27 @@ Nominatim returns bounding boxes as a list of strings:
 
 Format: `[south, north, west, east]`
 
+This represents the rectangular area that contains the place:
+
+```
+                 North (25.0349)
+                    ────────
+                    │      │
+      West          │      │         East
+    (121.5634)      │      │      (121.5654)
+                    │      │
+                    ────────
+                 South (25.0329)
+```
+
+### Why Bounding Boxes Matter
+
+1. **Zoom level**: Larger box = zoom out more on the map
+2. **Area calculations**: Estimate the size of a place
+3. **Containment checks**: Is a point inside this area?
+
+### Parsing Bounding Boxes
+
 ```python
 def parse_bounding_box(bbox: list) -> dict | None:
     """
@@ -667,8 +1166,9 @@ def parse_bounding_box(bbox: list) -> dict | None:
         bbox: List of [south, north, west, east] as strings
 
     Returns:
-        Dictionary with float coordinates or None if invalid
+        Dictionary with float coordinates, or None if invalid
     """
+    # Validate input
     if not bbox or len(bbox) != 4:
         return None
 
@@ -691,16 +1191,22 @@ def bbox_center(bbox: dict) -> tuple[float, float]:
 
 
 def bbox_area_km2(bbox: dict) -> float:
-    """Estimate the area of a bounding box in km²."""
-    # Approximate conversion at mid-latitudes
+    """
+    Estimate the area of a bounding box in km².
+
+    Note: This is an approximation. At the equator, 1 degree ≈ 111 km.
+    As you move toward the poles, longitude degrees get smaller.
+    """
+    import math
+
     lat_diff = bbox["north"] - bbox["south"]
     lon_diff = bbox["east"] - bbox["west"]
 
-    # 1 degree lat ≈ 111 km
-    # 1 degree lon ≈ 111 * cos(lat) km
-    import math
-    mid_lat = (bbox["north"] + bbox["south"]) / 2
+    # 1 degree latitude ≈ 111 km everywhere
     lat_km = lat_diff * 111
+
+    # 1 degree longitude ≈ 111 * cos(latitude) km
+    mid_lat = (bbox["north"] + bbox["south"]) / 2
     lon_km = lon_diff * 111 * math.cos(math.radians(mid_lat))
 
     return lat_km * lon_km
@@ -713,8 +1219,10 @@ result = {
 
 bbox = parse_bounding_box(result["boundingbox"])
 if bbox:
-    print(f"Center: {bbox_center(bbox)}")
-    print(f"Area: {bbox_area_km2(bbox):.4f} km²")
+    center = bbox_center(bbox)
+    area = bbox_area_km2(bbox)
+    print(f"Center: {center}")
+    print(f"Area: {area:.4f} km²")
 ```
 
 ---
@@ -727,7 +1235,23 @@ Stretch, grab water, check your phone!
 
 # Hour 3: Error Handling and Building a CLI Tool
 
-## 3.1 Python Error Handling Fundamentals
+## 3.1 Why Error Handling Matters
+
+In the previous hour, we learned to handle **missing data**. Now we'll handle **runtime errors** - things that go wrong when our code executes:
+
+- Network connection fails
+- API returns an error
+- User enters invalid input
+- File doesn't exist
+- Server is overloaded
+
+**Without error handling**: Your program crashes and the user sees a scary traceback.
+
+**With error handling**: Your program recovers gracefully and shows a helpful message.
+
+---
+
+## 3.2 Python Error Handling Fundamentals
 
 ### The `try/except` Statement
 
@@ -736,49 +1260,132 @@ try:
     # Code that might fail
     result = risky_operation()
 except SomeError:
-    # Handle the error
+    # Code to handle the error
     print("Something went wrong")
 ```
 
+**How it works:**
+1. Python tries to execute the code in the `try` block
+2. If an error occurs, Python stops and looks for a matching `except` block
+3. If found, it executes that block instead of crashing
+4. If not found, the program crashes as usual
+
+### Simple Example
+
+```python
+# Without error handling - crashes on invalid input
+number = int(input("Enter a number: "))  # If user types "abc" -> ValueError
+
+# With error handling - gracefully handles invalid input
+try:
+    number = int(input("Enter a number: "))
+    print(f"You entered: {number}")
+except ValueError:
+    print("That's not a valid number!")
+```
+
 ### Catching Multiple Exceptions
+
+You can handle different errors differently:
 
 ```python
 try:
     data = response.json()
     value = data["key"]
+
 except json.JSONDecodeError:
-    print("Invalid JSON")
+    # The response wasn't valid JSON
+    print("Invalid JSON response")
+
 except KeyError:
-    print("Key not found")
+    # The JSON was valid but missing our key
+    print("Key not found in response")
+
 except Exception as e:
+    # Catch-all for any other error
     print(f"Unexpected error: {e}")
+```
+
+**Order matters!** Python checks `except` blocks top to bottom.
+
+### The Exception Hierarchy
+
+Python exceptions form a hierarchy. More specific exceptions inherit from general ones:
+
+```
+Exception (base class)
+├── ValueError (invalid value)
+├── TypeError (wrong type)
+├── KeyError (missing dict key)
+├── IndexError (list index out of range)
+├── requests.exceptions.RequestException (base for requests errors)
+│   ├── requests.exceptions.Timeout
+│   ├── requests.exceptions.ConnectionError
+│   └── requests.exceptions.HTTPError
+└── ... many more
+```
+
+**Best practice**: Catch specific exceptions, not just `Exception`.
+
+```python
+# BAD - catches everything, hides bugs
+try:
+    something()
+except Exception:
+    pass  # Silently ignore all errors
+
+# GOOD - catches only what we expect
+try:
+    something()
+except ValueError:
+    handle_value_error()
+except KeyError:
+    handle_missing_key()
 ```
 
 ### The Full `try/except/else/finally` Structure
 
 ```python
 try:
-    # Risky code
+    # Code that might fail
     file = open("data.json")
     data = json.load(file)
+
 except FileNotFoundError:
+    # Handle missing file
     print("File not found")
     data = {}
+
 except json.JSONDecodeError:
-    print("Invalid JSON")
+    # Handle invalid JSON
+    print("Invalid JSON in file")
     data = {}
+
 else:
     # Only runs if NO exception occurred
-    print(f"Loaded {len(data)} items")
+    # Good place for code that depends on success
+    print(f"Successfully loaded {len(data)} items")
+
 finally:
     # ALWAYS runs, even if there was an exception
+    # Good place for cleanup (closing files, connections)
     if 'file' in locals():
         file.close()
+        print("File closed")
 ```
+
+**When to use each block:**
+
+| Block | When it runs | Use for |
+|-------|--------------|---------|
+| `try` | Always attempted | Code that might fail |
+| `except` | Only on matching error | Error handling |
+| `else` | Only if no error | Success-dependent code |
+| `finally` | Always, after try/except | Cleanup (close files, etc.) |
 
 ---
 
-## 3.2 Common API-Related Exceptions
+## 3.3 Common API-Related Exceptions
 
 ### Network Exceptions (from `requests`)
 
@@ -790,29 +1397,31 @@ try:
     response.raise_for_status()  # Raises HTTPError for 4xx/5xx
 
 except requests.exceptions.Timeout:
-    # Server didn't respond in time
-    print("Request timed out")
+    # The server took too long to respond
+    print("Request timed out - server might be slow")
 
 except requests.exceptions.ConnectionError:
-    # Network problem (DNS failure, refused connection, etc.)
-    print("Connection failed")
+    # Couldn't connect at all (no internet, wrong URL, etc.)
+    print("Connection failed - check your internet")
 
 except requests.exceptions.HTTPError as e:
-    # Server returned an error status (4xx, 5xx)
+    # Server returned an error status (4xx or 5xx)
     print(f"HTTP error: {e.response.status_code}")
+    if e.response.status_code == 403:
+        print("Forbidden - check your User-Agent header")
+    elif e.response.status_code == 429:
+        print("Rate limited - slow down!")
 
 except requests.exceptions.RequestException as e:
-    # Base class for all requests exceptions
+    # Base class catches all requests errors
     print(f"Request failed: {e}")
 ```
 
 ### Data Parsing Exceptions
 
 ```python
-import json
-
 try:
-    # Parse JSON
+    # Parse the JSON response
     data = response.json()
 
     # Access nested data
@@ -821,76 +1430,142 @@ try:
     name = result["address"]["city"]
 
 except json.JSONDecodeError:
-    # Response wasn't valid JSON
-    print("Invalid JSON response")
+    # Response body wasn't valid JSON
+    print("Server returned invalid JSON")
 
 except IndexError:
-    # List was empty or index out of range
+    # Tried to access data[0] but list was empty
     print("No results found")
 
 except KeyError as e:
-    # Dictionary key doesn't exist
-    print(f"Missing field: {e}")
+    # Dictionary was missing a key
+    print(f"Response missing expected field: {e}")
 
 except TypeError:
-    # Wrong type (e.g., trying to index None)
-    print("Unexpected data type")
+    # Tried to access something that was None
+    # e.g., result["address"] returned None, then ["city"] fails
+    print("Unexpected data structure")
 
 except ValueError:
-    # Conversion failed (e.g., float("not a number"))
-    print("Invalid value format")
+    # float() conversion failed
+    # e.g., float("not a number")
+    print("Invalid coordinate format")
 ```
 
 ---
 
-## 3.3 Designing Error Classes
+## 3.4 Designing Custom Exception Classes
 
-For complex applications, create custom exception classes:
+For larger applications, create custom exceptions that describe your domain:
 
 ```python
 class GeocodingError(Exception):
-    """Base exception for geocoding errors."""
+    """
+    Base exception for all geocoding-related errors.
+
+    By creating a hierarchy of exceptions, calling code can:
+    - Catch all geocoding errors with `except GeocodingError`
+    - Catch specific errors with `except NotFoundError`
+    """
     pass
 
 
 class NetworkError(GeocodingError):
-    """Network-related errors."""
+    """
+    Raised when a network request fails.
+
+    Examples:
+    - Connection timeout
+    - DNS resolution failure
+    - Server returned 5xx error
+    """
     pass
 
 
 class RateLimitError(GeocodingError):
-    """Rate limit exceeded."""
+    """
+    Raised when we've made too many requests.
+
+    Nominatim allows 1 request per second.
+    If exceeded, server returns 429 status.
+    """
     pass
 
 
 class NotFoundError(GeocodingError):
-    """Place not found."""
+    """
+    Raised when the place cannot be found.
+
+    The API worked but returned no results.
+    """
     pass
 
 
 class ParseError(GeocodingError):
-    """Error parsing response."""
+    """
+    Raised when we can't parse the API response.
+
+    The response structure was unexpected.
+    """
     pass
+```
 
+### Using Custom Exceptions
 
-# Usage
+```python
 def geocode(query: str) -> dict:
-    """Geocode a place name."""
+    """
+    Geocode a place name to coordinates.
+
+    Args:
+        query: Place name to search for
+
+    Returns:
+        Dictionary with name, lat, lon
+
+    Raises:
+        NetworkError: If the API request fails
+        RateLimitError: If rate limit exceeded
+        NotFoundError: If place not found
+        ParseError: If response can't be parsed
+    """
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {"q": query, "format": "json", "limit": 1}
+    headers = {"User-Agent": "CS101/1.0 (test@example.com)"}
+
     try:
+        # Make the request
         response = requests.get(url, params=params, headers=headers, timeout=10)
 
+        # Check for rate limiting (429 status)
         if response.status_code == 429:
             raise RateLimitError("Too many requests. Please wait.")
 
+        # Check for other HTTP errors
         if response.status_code != 200:
             raise NetworkError(f"HTTP {response.status_code}")
 
+        # Parse response
         data = response.json()
 
+        # Check for empty results
         if not data:
             raise NotFoundError(f"No results for: {query}")
 
-        return parse_result(data[0])
+        # Extract and return data
+        result = data[0]
+        return {
+            "name": result.get("name", query),
+            "lat": float(result["lat"]),
+            "lon": float(result["lon"]),
+            "display_name": result.get("display_name", "")
+        }
+
+    except requests.exceptions.Timeout:
+        raise NetworkError("Request timed out")
+
+    except requests.exceptions.ConnectionError:
+        raise NetworkError("Connection failed")
 
     except requests.exceptions.RequestException as e:
         raise NetworkError(f"Request failed: {e}")
@@ -899,23 +1574,35 @@ def geocode(query: str) -> dict:
         raise ParseError(f"Failed to parse response: {e}")
 
 
-# Using the function
+# Using the function with error handling
 try:
     result = geocode("Taipei 101")
-    print(result)
+    print(f"Found: {result['name']} at ({result['lat']}, {result['lon']})")
+
 except NotFoundError:
     print("Place not found. Try a different search term.")
+
 except RateLimitError:
     print("Too many requests. Wait a moment and try again.")
-except NetworkError:
-    print("Network problem. Check your internet connection.")
+
+except NetworkError as e:
+    print(f"Network problem: {e}")
+
 except GeocodingError as e:
+    # Catch-all for any geocoding error we didn't specifically handle
     print(f"Geocoding failed: {e}")
 ```
 
+### Benefits of Custom Exceptions
+
+1. **Clarity**: `NotFoundError` is clearer than `ValueError`
+2. **Hierarchy**: Can catch all geocoding errors or specific ones
+3. **Documentation**: Docstrings explain when each is raised
+4. **Separation**: Network errors vs data errors vs business logic errors
+
 ---
 
-## 3.4 Mini-Exercise 3: Error Handling Practice
+## 3.5 Mini-Exercise 3: Error Handling Practice
 
 Add proper error handling to this function:
 
@@ -927,22 +1614,22 @@ def get_coordinates(place_name: str) -> tuple[float, float]:
     Get coordinates for a place name.
 
     Should handle:
-    - Network errors
+    - Network errors (timeout, connection failure)
     - Empty results
-    - Missing/invalid lat/lon
+    - Missing or invalid lat/lon
 
     Returns:
         Tuple of (latitude, longitude)
 
     Raises:
-        ValueError: If place not found or invalid data
-        ConnectionError: If network fails
+        ValueError: If place not found or data invalid
+        ConnectionError: If network request fails
     """
     url = "https://nominatim.openstreetmap.org/search"
     headers = {"User-Agent": "CS101/1.0 (test@example.com)"}
     params = {"q": place_name, "format": "json", "limit": 1}
 
-    # Add error handling here
+    # Currently has no error handling!
     response = requests.get(url, params=params, headers=headers, timeout=10)
     data = response.json()
     result = data[0]
@@ -950,6 +1637,14 @@ def get_coordinates(place_name: str) -> tuple[float, float]:
     lon = float(result["lon"])
     return (lat, lon)
 ```
+
+**Errors to handle:**
+1. Network timeout
+2. Connection failure
+3. HTTP error status
+4. Empty results (no places found)
+5. Missing lat/lon fields
+6. Invalid lat/lon values (can't convert to float)
 
 <details>
 <summary>Solution</summary>
@@ -959,84 +1654,107 @@ import requests
 
 def get_coordinates(place_name: str) -> tuple[float, float]:
     """
-    Get coordinates for a place name.
+    Get coordinates for a place name with robust error handling.
     """
     url = "https://nominatim.openstreetmap.org/search"
     headers = {"User-Agent": "CS101/1.0 (test@example.com)"}
     params = {"q": place_name, "format": "json", "limit": 1}
 
     try:
+        # Make the request with timeout
         response = requests.get(
             url, params=params, headers=headers, timeout=10
         )
 
-        # Check HTTP status
+        # Check HTTP status code
         if response.status_code != 200:
-            raise ConnectionError(f"HTTP {response.status_code}")
+            raise ConnectionError(f"HTTP error: {response.status_code}")
 
-        # Parse JSON
+        # Parse JSON response
         data = response.json()
 
-        # Check for results
+        # Check for empty results
         if not data:
             raise ValueError(f"No results found for: {place_name}")
 
+        # Get first result
         result = data[0]
 
-        # Extract and convert coordinates
+        # Check that lat/lon exist
         if "lat" not in result or "lon" not in result:
             raise ValueError("Response missing coordinates")
 
+        # Convert to floats (might fail if values are malformed)
         lat = float(result["lat"])
         lon = float(result["lon"])
 
         return (lat, lon)
 
     except requests.exceptions.Timeout:
+        # Server didn't respond in time
         raise ConnectionError("Request timed out")
 
     except requests.exceptions.ConnectionError:
+        # Couldn't establish connection
         raise ConnectionError("Network connection failed")
 
     except requests.exceptions.RequestException as e:
+        # Any other requests error
         raise ConnectionError(f"Request failed: {e}")
 
+    except json.JSONDecodeError:
+        # Response wasn't valid JSON
+        raise ValueError("Server returned invalid response")
+
     except (KeyError, IndexError) as e:
-        raise ValueError(f"Invalid response format: {e}")
-
-    except (TypeError, ValueError) as e:
-        if "could not convert" in str(e).lower():
-            raise ValueError(f"Invalid coordinate format: {e}")
-        raise
+        # Data structure wasn't as expected
+        raise ValueError(f"Unexpected response format: {e}")
 
 
-# Test
-try:
-    coords = get_coordinates("Taipei 101")
-    print(f"Coordinates: {coords}")
-except ValueError as e:
-    print(f"Error: {e}")
-except ConnectionError as e:
-    print(f"Network error: {e}")
+# Test the function
+import time
+
+test_queries = [
+    "Taipei 101",              # Should work
+    "xyzzy12345notaplace",     # Should raise ValueError (not found)
+]
+
+for query in test_queries:
+    print(f"\nSearching for: {query}")
+    try:
+        coords = get_coordinates(query)
+        print(f"  Found: {coords}")
+    except ValueError as e:
+        print(f"  Not found: {e}")
+    except ConnectionError as e:
+        print(f"  Network error: {e}")
+
+    time.sleep(1)  # Rate limiting
 ```
 
 </details>
 
 ---
 
-## 3.5 Building the Complete CLI Geocoder
+## 3.6 Building the Complete CLI Geocoder
 
-Now let's build a complete, production-quality CLI geocoder:
+Now let's put everything together into a complete, production-quality CLI tool:
 
 ```python
 #!/usr/bin/env python3
 """
 Geocoder CLI - Convert place names to coordinates.
 
+A complete command-line geocoding tool demonstrating:
+- API integration with Nominatim
+- Robust error handling
+- Response caching
+- Interactive and batch modes
+
 Usage:
-    python geocoder_cli.py
-    python geocoder_cli.py "Taipei 101"
-    python geocoder_cli.py --reverse 25.0339 121.5645
+    python geocoder_cli.py                    # Interactive mode
+    python geocoder_cli.py "Taipei 101"       # Quick geocode
+    python geocoder_cli.py --reverse 25.03 121.56  # Reverse geocode
 """
 
 import requests
@@ -1068,21 +1786,27 @@ class GeocoderError(Exception):
 
 
 class NetworkError(GeocoderError):
-    """Network-related errors."""
+    """Network-related errors (timeout, connection, HTTP errors)."""
     pass
 
 
 class NotFoundError(GeocoderError):
-    """Place not found."""
+    """Place not found in the database."""
     pass
 
 
 # =============================================================================
 # Cache Functions
 # =============================================================================
+# Caching avoids repeated API calls for the same query.
+# This is polite (reduces server load) and fast (instant results).
 
 def load_cache() -> dict:
-    """Load cache from file."""
+    """
+    Load the cache from disk.
+
+    Returns empty dict if file doesn't exist or is corrupted.
+    """
     cache_path = Path(CONFIG["cache_file"])
     if cache_path.exists():
         try:
@@ -1093,7 +1817,11 @@ def load_cache() -> dict:
 
 
 def save_cache(cache: dict):
-    """Save cache to file."""
+    """
+    Save the cache to disk.
+
+    Silently fails if write fails (cache is not critical).
+    """
     cache_path = Path(CONFIG["cache_file"])
     try:
         cache_path.write_text(json.dumps(cache, indent=2))
@@ -1102,13 +1830,13 @@ def save_cache(cache: dict):
 
 
 def get_cached(query: str) -> dict | None:
-    """Get cached result for a query."""
+    """Get a cached result for a query (case-insensitive)."""
     cache = load_cache()
     return cache.get(query.lower())
 
 
 def set_cached(query: str, result: dict):
-    """Cache a result."""
+    """Cache a result (case-insensitive key)."""
     cache = load_cache()
     cache[query.lower()] = result
     save_cache(cache)
@@ -1122,25 +1850,38 @@ def geocode(query: str, use_cache: bool = True) -> dict:
     """
     Convert a place name to coordinates.
 
+    This is the main geocoding function. It:
+    1. Checks the cache first (if enabled)
+    2. Makes an API request to Nominatim
+    3. Parses and validates the response
+    4. Caches the result (if enabled)
+
     Args:
-        query: Place name to search
-        use_cache: Whether to use cached results
+        query: Place name to search for
+        use_cache: Whether to check/update cache
 
     Returns:
-        Dictionary with name, lat, lon, display_name
+        Dictionary with:
+        - name: Short name of the place
+        - lat: Latitude (float)
+        - lon: Longitude (float)
+        - display_name: Full formatted address
+        - type: Place classification
+        - cached: Whether result came from cache
 
     Raises:
-        NotFoundError: If place not found
-        NetworkError: If network request fails
+        NotFoundError: If no results found
+        NetworkError: If API request fails
+        GeocoderError: If response can't be parsed
     """
-    # Check cache first
+    # Step 1: Check cache
     if use_cache:
         cached = get_cached(query)
         if cached:
             cached["cached"] = True
             return cached
 
-    # Make API request
+    # Step 2: Build and make API request
     url = f"{CONFIG['base_url']}/search"
     params = {
         "q": query,
@@ -1156,18 +1897,20 @@ def geocode(query: str, use_cache: bool = True) -> dict:
             timeout=CONFIG["timeout"]
         )
 
+        # Step 3: Handle HTTP errors
         if response.status_code == 429:
             raise NetworkError("Rate limit exceeded. Wait and try again.")
 
         if response.status_code != 200:
             raise NetworkError(f"HTTP {response.status_code}")
 
+        # Step 4: Parse response
         data = response.json()
 
         if not data:
             raise NotFoundError(f"No results for: {query}")
 
-        # Parse result
+        # Step 5: Extract and validate data
         result = data[0]
         parsed = {
             "name": result.get("name", query),
@@ -1178,7 +1921,7 @@ def geocode(query: str, use_cache: bool = True) -> dict:
             "cached": False
         }
 
-        # Cache the result
+        # Step 6: Cache the result
         if use_cache:
             set_cached(query, parsed)
 
@@ -1203,11 +1946,14 @@ def reverse_geocode(lat: float, lon: float) -> dict:
         lon: Longitude
 
     Returns:
-        Dictionary with address information
+        Dictionary with:
+        - display_name: Full formatted address
+        - address: Structured address components
+        - lat, lon: The input coordinates
 
     Raises:
-        NotFoundError: If location not found
-        NetworkError: If network request fails
+        NotFoundError: If location not in database
+        NetworkError: If API request fails
     """
     url = f"{CONFIG['base_url']}/reverse"
     params = {
@@ -1244,16 +1990,16 @@ def reverse_geocode(lat: float, lon: float) -> dict:
 
 
 # =============================================================================
-# CLI Interface
+# Display Functions
 # =============================================================================
 
 def print_result(result: dict):
-    """Pretty print a geocoding result."""
+    """Pretty print a forward geocoding result."""
     print()
     print(f"  Name: {result.get('name', 'N/A')}")
     print(f"  Coordinates: ({result['lat']:.6f}, {result['lon']:.6f})")
     print(f"  Full address: {result.get('display_name', 'N/A')}")
-    if result.get("type"):
+    if result.get("type") and result["type"] != ":":
         print(f"  Type: {result['type']}")
     if result.get("cached"):
         print("  (from cache)")
@@ -1269,39 +2015,52 @@ def print_reverse_result(result: dict):
     address = result.get("address", {})
     if address:
         print("  Components:")
-        for key, value in address.items():
+        for key, value in list(address.items())[:10]:  # Limit to 10 items
             print(f"    {key}: {value}")
     print()
 
 
+# =============================================================================
+# CLI Interface
+# =============================================================================
+
 def interactive_mode():
-    """Run the geocoder in interactive mode."""
-    print("\n=== Geocoder CLI ===")
-    print("Commands:")
-    print("  <place name>     - Search for a place")
-    print("  reverse <lat> <lon> - Reverse geocode")
-    print("  quit             - Exit")
+    """
+    Run the geocoder in interactive mode.
+
+    Provides a REPL (Read-Eval-Print Loop) for geocoding.
+    """
+    print("\n" + "="*50)
+    print("  Geocoder CLI - Interactive Mode")
+    print("="*50)
+    print("\nCommands:")
+    print("  <place name>          - Search for a place")
+    print("  reverse <lat> <lon>   - Reverse geocode")
+    print("  quit                  - Exit")
     print()
 
-    last_request = 0
+    last_request = 0  # For rate limiting
 
     while True:
+        # Get user input
         try:
             user_input = input("geocoder> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
             break
 
+        # Skip empty input
         if not user_input:
             continue
 
+        # Handle quit command
         if user_input.lower() in ("quit", "exit", "q"):
             print("Goodbye!")
             break
 
-        # Rate limiting
+        # Rate limiting: ensure at least 1 second between API calls
         elapsed = time.time() - last_request
-        if elapsed < 1:
+        if elapsed < 1 and last_request > 0:
             time.sleep(1 - elapsed)
 
         # Handle reverse geocoding
@@ -1309,6 +2068,7 @@ def interactive_mode():
             parts = user_input.split()
             if len(parts) != 3:
                 print("Usage: reverse <lat> <lon>")
+                print("Example: reverse 25.0339 121.5645")
                 continue
 
             try:
@@ -1318,12 +2078,12 @@ def interactive_mode():
                 print_reverse_result(result)
                 last_request = time.time()
             except ValueError:
-                print("Invalid coordinates. Use: reverse 25.0339 121.5645")
+                print("Invalid coordinates. Example: reverse 25.0339 121.5645")
             except GeocoderError as e:
                 print(f"Error: {e}")
             continue
 
-        # Handle forward geocoding
+        # Handle forward geocoding (default)
         try:
             result = geocode(user_input)
             print_result(result)
@@ -1337,10 +2097,15 @@ def interactive_mode():
 
 
 def main():
-    """Main entry point."""
-    # Check for command line arguments
+    """
+    Main entry point.
+
+    Handles command-line arguments or starts interactive mode.
+    """
     if len(sys.argv) > 1:
+        # Command-line mode
         if sys.argv[1] == "--reverse" and len(sys.argv) == 4:
+            # Reverse geocoding
             try:
                 lat = float(sys.argv[2])
                 lon = float(sys.argv[3])
@@ -1352,7 +2117,10 @@ def main():
             except GeocoderError as e:
                 print(f"Error: {e}")
                 sys.exit(1)
+        elif sys.argv[1] in ("--help", "-h"):
+            print(__doc__)
         else:
+            # Forward geocoding
             query = " ".join(sys.argv[1:])
             try:
                 result = geocode(query)
@@ -1361,6 +2129,7 @@ def main():
                 print(f"Error: {e}")
                 sys.exit(1)
     else:
+        # Interactive mode
         interactive_mode()
 
 
@@ -1370,97 +2139,36 @@ if __name__ == "__main__":
 
 ---
 
-## 3.6 Mini-Exercise 4: Extend the CLI
-
-Add these features to the CLI:
-
-1. A `search` command that returns multiple results
-2. A `--json` flag to output results as JSON
-
-```python
-# Example usage:
-# geocoder> search taipei station
-# 1. Taipei Main Station, ...
-# 2. Taipei City Hall Station, ...
-# 3. ...
-
-# $ python geocoder_cli.py --json "Taipei 101"
-# {"name": "Taipei 101", "lat": 25.0339, "lon": 121.5645, ...}
-```
-
-<details>
-<summary>Solution Hints</summary>
-
-```python
-# For search command, modify geocode() to accept a limit parameter:
-
-def geocode(query: str, limit: int = 1, use_cache: bool = True) -> list[dict]:
-    """Modified to return multiple results."""
-    params = {
-        "q": query,
-        "format": "json",
-        "limit": limit,  # Changed from hardcoded 1
-        "addressdetails": 1
-    }
-    # ... rest of the function
-
-    # Parse ALL results, not just the first
-    results = []
-    for item in data[:limit]:
-        parsed = {
-            "name": item.get("name", query),
-            "lat": float(item["lat"]),
-            "lon": float(item["lon"]),
-            # ...
-        }
-        results.append(parsed)
-
-    return results
-
-
-# For --json flag, check sys.argv and use json.dumps():
-
-def main():
-    json_output = "--json" in sys.argv
-    if json_output:
-        sys.argv.remove("--json")
-
-    # ... do geocoding ...
-
-    if json_output:
-        print(json.dumps(result, indent=2))
-    else:
-        print_result(result)
-```
-
-</details>
-
----
-
 ## 3.7 Best Practices Summary
 
 ### Error Handling Best Practices
 
-1. **Be Specific**: Catch specific exceptions, not bare `except:`
-2. **Fail Fast**: Validate inputs early
-3. **Provide Context**: Include useful information in error messages
-4. **Don't Silence Errors**: Log or report errors, don't ignore them
-5. **Use Custom Exceptions**: Create domain-specific exception classes
+| Practice | Why | Example |
+|----------|-----|---------|
+| **Be Specific** | Different errors need different handling | `except ValueError` not `except Exception` |
+| **Fail Fast** | Catch errors early | Validate inputs at function start |
+| **Provide Context** | Help debugging | `raise ValueError(f"Invalid lat: {lat}")` |
+| **Don't Silence Errors** | Hidden errors cause bugs | Log errors, don't just `pass` |
+| **Use Custom Exceptions** | Clear, domain-specific | `NotFoundError`, `RateLimitError` |
 
 ### API Integration Best Practices
 
-1. **Always Set Timeouts**: Never let requests hang forever
-2. **Respect Rate Limits**: Add delays between requests
-3. **Cache Results**: Don't repeat identical requests
-4. **Validate Responses**: Check status codes and data structure
-5. **Handle All Error Cases**: Network, parsing, and data errors
+| Practice | Why | Implementation |
+|----------|-----|----------------|
+| **Set Timeouts** | Don't hang forever | `timeout=10` |
+| **Respect Rate Limits** | Avoid getting banned | `time.sleep(1)` between requests |
+| **Cache Results** | Reduce load, speed up | File or memory cache |
+| **Validate Responses** | Don't trust API blindly | Check status codes and data |
+| **Handle All Errors** | Graceful degradation | Network, parsing, and logic errors |
 
 ### Data Parsing Best Practices
 
-1. **Use `.get()` with Defaults**: Avoid KeyError crashes
-2. **Convert Types Explicitly**: Don't assume strings are numbers
-3. **Validate Before Use**: Check that data exists and is valid
-4. **Handle Missing Data**: Provide sensible defaults or skip
+| Practice | Why | Example |
+|----------|-----|---------|
+| **Use `.get()`** | Avoid KeyError | `result.get("key", default)` |
+| **Convert Types** | APIs return strings | `float(result["lat"])` |
+| **Validate Data** | Catch bad data early | Check for required fields |
+| **Handle Missing** | Data is incomplete | Fallback values |
 
 ---
 
@@ -1472,22 +2180,23 @@ Create a script that:
 2. Geocodes each place with rate limiting
 3. Writes results to a JSON file
 4. Handles errors gracefully (skip failed places, don't crash)
+5. Reports summary at the end (X succeeded, Y failed)
 
 ### Assignment 2: Address Formatter (Intermediate)
-Create a function that:
-1. Takes a Nominatim result with `addressdetails`
-2. Formats it according to the country's conventions:
-   - Taiwan: "District, City, Country"
-   - USA: "Street, City, State ZIP"
-   - Japan: "Prefecture City District"
-3. Handles missing fields gracefully
+Create a function that formats addresses according to country conventions:
+- Taiwan: "District, City, Country"
+- USA: "Street, City, State ZIP"
+- Japan: "Prefecture City District"
 
-### Assignment 3: Geocoder with Fallback (Advanced)
+The function should detect the country and format accordingly.
+
+### Assignment 3: Geocoder with Retry (Advanced)
 Enhance the geocoder to:
-1. Try exact match first
-2. If no results, try removing punctuation
-3. If still no results, try just the first few words
-4. Cache all attempts to avoid repeated failures
+1. Retry failed requests up to 3 times with exponential backoff
+2. Try alternative queries if exact match fails:
+   - Remove punctuation
+   - Try just the first 3 words
+3. Cache both successes and failures (to avoid retrying known failures)
 
 ---
 
@@ -1497,15 +2206,17 @@ Enhance the geocoder to:
 - [Nominatim API Documentation](https://nominatim.org/release-docs/latest/api/Overview/)
 - [OpenStreetMap Wiki - Nominatim](https://wiki.openstreetmap.org/wiki/Nominatim)
 - [Python Requests - Error Handling](https://docs.python-requests.org/en/latest/user/quickstart/#errors-and-exceptions)
+- [Python Exception Handling](https://docs.python.org/3/tutorial/errors.html)
 
 ### Alternative Geocoding Services
 - [Google Geocoding API](https://developers.google.com/maps/documentation/geocoding) (paid)
 - [Mapbox Geocoding](https://docs.mapbox.com/api/search/geocoding/) (freemium)
 - [HERE Geocoding](https://developer.here.com/documentation/geocoding-search-api/) (freemium)
+- [Geopy](https://geopy.readthedocs.io/) (Python library supporting multiple services)
 
-### Practice
+### Practice Resources
 - [JSONPlaceholder](https://jsonplaceholder.typicode.com/) - Practice parsing nested JSON
-- [httpbin.org](https://httpbin.org/) - Test error handling
+- [httpbin.org](https://httpbin.org/) - Test error handling with fake errors
 
 ---
 
@@ -1513,7 +2224,7 @@ Enhance the geocoder to:
 
 **Week 6: Searching for Places (Lazy Loading)**
 - Query parameters and pagination
-- Python generators and `yield`
+- Python generators and the `yield` keyword
 - Lazy evaluation for memory efficiency
 - Building a paginated search interface
 
