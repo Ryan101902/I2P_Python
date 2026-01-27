@@ -84,11 +84,11 @@ Every week introduces a new Python concept specifically required to build the ne
 - **Concept:** Query parameters, Pagination, Lazy Evaluation (Generators)
 - **Project Task:** Script that asks "What do you want to eat?". Use a Generator (`yield`) to handle API pagination, fetching results one page at a time to avoid memory overload.
 
-#### Week 7: OSRM API (Real Routing)
+#### Week 7: Midterm Exam 1 (Tue. & Thu.)
+
+#### Week 8: OSRM API (Real Routing)
 - **Concept:** 2D Lists (Matrices), Cost comparison
 - **Project Task:** Compare "Haversine distance" (straight line) vs "OSRM Distance" (walking time). Fetch route geometry (JSON) from the OSRM public demo server.
-
-#### Week 8: Midterm Exam 1 (Tue. & Thu.)
 
 ---
 
