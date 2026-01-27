@@ -1,74 +1,68 @@
-# Week 7: The Smart City Navigator (Capstone Project)
+# Week 7: Midterm Exam 1
 
-**Phase 2: The API & The Cloud** — "Fetching the World"
-
----
-
-## Overview
-
-This is our capstone week! We combine everything learned to build a complete **Smart City Navigator** - a command-line application that helps users navigate between locations using real addresses, coordinates, and optimal routing.
+**Exam Schedule:** Tuesday & Thursday (電腦教室考試)
 
 ---
 
-## Concepts
+## Exam Coverage
 
-- System architecture and separation of concerns
-- Data models with dataclasses (Location, Route, RouteStep)
-- Integrating multiple APIs (Nominatim + OSRM)
-- Command-line interface design with argparse
-- Error handling strategies
-- Caching for performance
+### Phase 1: Data & Coordinates (Weeks 1-3)
+- Variables, Floats, Tuples
+- Functions and the Math module
+- Haversine Formula implementation
+- Lists, `for` loops, `range`, `zip`
+- Dictionaries and nested structures
+- JSON reading/writing
 
----
-
-## What We'll Build
-
-A fully-functional navigation system that:
-- Converts addresses to coordinates (Nominatim)
-- Calculates optimal routes (OSRM)
-- Handles multiple waypoints efficiently
-- Provides clear, user-friendly output
-- Handles errors gracefully
-- Supports different transportation modes
+### Phase 2: APIs & Network (Weeks 4-6)
+- HTTP Request/Response cycle
+- Status codes (200, 403, 404, 429)
+- User-Agent headers and API etiquette
+- Nominatim API for geocoding
+- Error handling (`try/except`)
+- Generators and `yield`
 
 ---
 
-## Project Structure
+## What to Review
 
-```python
-# Key classes in our navigator
-class Location:
-    """Represents a geographic location."""
-    name: str
-    latitude: float
-    longitude: float
-    display_name: str
-
-class Route:
-    """Represents a complete route."""
-    distance: float
-    duration: float
-    geometry: List[Tuple[float, float]]
-
-class GeocodingService:
-    """Handles address → coordinates conversion."""
-    def geocode(self, address: str) -> Optional[Location]: ...
-
-class RoutingService:
-    """Handles route calculation."""
-    def get_route(self, waypoints: List) -> Optional[Route]: ...
-
-class Navigator:
-    """Coordinates the services."""
-    def navigate(self, start: str, end: str) -> Optional[dict]: ...
-```
+1. **Haversine Formula** — Be able to implement from scratch
+2. **JSON Parsing** — Extract data from nested structures
+3. **API Calls** — Construct proper requests with headers
+4. **Error Handling** — Handle common exceptions gracefully
+5. **Generators** — Understand `yield` vs `return`
 
 ---
 
-## Lab Exercises
+## Sample Practice Problems
 
-See the `lectures/lecture_exercises/` folder for this week's exercises.
+### Problem 1: Haversine
+Write a function that takes two coordinate tuples and returns the distance in kilometers.
 
-## Lecture Materials
+### Problem 2: JSON Navigation
+Given a nested JSON response from Nominatim, extract the latitude, longitude, and display name.
 
-See the `lectures/` folder for slides and examples.
+### Problem 3: Error Handling
+Write code that gracefully handles network timeouts and invalid responses.
+
+### Problem 4: Generator
+Create a generator that yields coordinates from a list, one at a time.
+
+---
+
+## Exam Format
+
+- Computer-based exam in the lab
+- You may use Python documentation
+- No internet access during the exam
+- Two attempts available — higher score counts
+
+---
+
+## 筆試 (Written Exam - 5%)
+
+The written exam is held together with the midterm. It covers:
+- Conceptual understanding of APIs
+- HTTP protocol basics
+- Algorithm complexity (basic)
+- Code reading and tracing
