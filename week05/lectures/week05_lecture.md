@@ -584,7 +584,7 @@ Stand up, stretch, rest your eyes!
 
 ---
 
-# Hour 2: Parsing Complex Nested JSON
+# Hour 2: Parsing Complex Nested JSON & Recursion
 
 ## 2.1 The Challenge of Real-World JSON
 
@@ -879,7 +879,379 @@ print(f"Postcode: {postcode}") # "N/A"
 
 ---
 
-## 2.4 Parsing Nominatim Results Robustly
+## 2.4 Introduction to Recursion
+
+### What is Recursion?
+
+**Recursion** is when a function calls itself to solve a problem. It's a powerful technique for working with nested or hierarchical data structures—exactly what we encounter with complex JSON responses.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Recursion: A function that calls itself                 │
+│                                                          │
+│  solve_problem(data)                                     │
+│      │                                                   │
+│      ├─── Is this the simple case? → Return answer       │
+│      │                                                   │
+│      └─── Otherwise → solve_problem(smaller_data)        │
+│                              │                           │
+│                              └─── ... and so on          │
+└──────────────────────────────────────────────────────────┘
+```
+
+### The Two Essential Parts of Recursion
+
+Every recursive function needs:
+
+1. **Base Case**: When to stop (prevents infinite recursion)
+2. **Recursive Case**: How to break down the problem and call itself
+
+```python
+def countdown(n):
+    """Count down from n to 1."""
+    # Base case: stop when n reaches 0
+    if n <= 0:
+        print("Done!")
+        return
+
+    # Recursive case: print n, then countdown from n-1
+    print(n)
+    countdown(n - 1)  # Function calls itself with a smaller value
+
+
+countdown(5)
+# Output:
+# 5
+# 4
+# 3
+# 2
+# 1
+# Done!
+```
+
+### Classic Example: Factorial
+
+Factorial (n!) is the product of all positive integers up to n:
+- 5! = 5 × 4 × 3 × 2 × 1 = 120
+- 3! = 3 × 2 × 1 = 6
+- 1! = 1
+- 0! = 1 (by definition)
+
+**Mathematically**: n! = n × (n-1)!
+
+```python
+def factorial(n):
+    """
+    Calculate n! (n factorial) recursively.
+
+    Base case: 0! = 1
+    Recursive case: n! = n × (n-1)!
+    """
+    # Base case
+    if n <= 1:
+        return 1
+
+    # Recursive case
+    return n * factorial(n - 1)
+
+
+print(factorial(5))  # 120
+print(factorial(0))  # 1
+```
+
+**How it works (tracing the calls):**
+```
+factorial(5)
+  = 5 * factorial(4)
+  = 5 * (4 * factorial(3))
+  = 5 * (4 * (3 * factorial(2)))
+  = 5 * (4 * (3 * (2 * factorial(1))))
+  = 5 * (4 * (3 * (2 * 1)))         ← Base case reached
+  = 5 * (4 * (3 * 2))
+  = 5 * (4 * 6)
+  = 5 * 24
+  = 120
+```
+
+### Why Recursion Matters for JSON Parsing
+
+Nested JSON structures are naturally recursive—dictionaries can contain dictionaries, which can contain more dictionaries, to any depth:
+
+```python
+data = {
+    "level1": {
+        "level2": {
+            "level3": {
+                "value": "deep inside!"
+            }
+        }
+    }
+}
+```
+
+You don't know in advance how deep the nesting goes. Recursion handles this naturally.
+
+---
+
+## 2.5 Recursive JSON Traversal
+
+### Finding All Values for a Key
+
+Let's write a recursive function that finds all occurrences of a key anywhere in a nested structure:
+
+```python
+def find_all_values(data, target_key):
+    """
+    Recursively find all values for a given key in nested data.
+
+    Args:
+        data: A dictionary, list, or value
+        target_key: The key to search for
+
+    Returns:
+        List of all values found for that key
+
+    Example:
+        >>> data = {"a": 1, "nested": {"a": 2, "deep": {"a": 3}}}
+        >>> find_all_values(data, "a")
+        [1, 2, 3]
+    """
+    results = []
+
+    if isinstance(data, dict):
+        # If it's a dictionary, check each key
+        for key, value in data.items():
+            if key == target_key:
+                results.append(value)
+            # Recursively search in the value (could be dict or list)
+            results.extend(find_all_values(value, target_key))
+
+    elif isinstance(data, list):
+        # If it's a list, search each element
+        for item in data:
+            results.extend(find_all_values(item, target_key))
+
+    # Base case: if it's neither dict nor list, there's nothing to search
+    return results
+
+
+# Example with Nominatim-like data
+sample_response = {
+    "place_id": 123,
+    "name": "Taipei 101",
+    "address": {
+        "name": "台北101",
+        "road": "Xinyi Road",
+        "details": {
+            "name": "Taipei World Financial Center"
+        }
+    },
+    "alternates": [
+        {"name": "台北金融大樓"},
+        {"name": "Taipei Financial Center"}
+    ]
+}
+
+all_names = find_all_values(sample_response, "name")
+print(all_names)
+# ['Taipei 101', '台北101', 'Taipei World Financial Center',
+#  '台北金融大樓', 'Taipei Financial Center']
+```
+
+### Flattening Nested Structures
+
+Sometimes you want to flatten deeply nested JSON into a simple key-value format:
+
+```python
+def flatten_dict(data, parent_key="", separator="."):
+    """
+    Flatten a nested dictionary into a single-level dictionary.
+
+    Args:
+        data: Nested dictionary
+        parent_key: Prefix for keys (used in recursion)
+        separator: Character to join nested keys
+
+    Returns:
+        Flattened dictionary with dot-notation keys
+
+    Example:
+        >>> nested = {"a": {"b": {"c": 1}}}
+        >>> flatten_dict(nested)
+        {'a.b.c': 1}
+    """
+    items = {}
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            new_key = f"{parent_key}{separator}{key}" if parent_key else key
+
+            if isinstance(value, dict):
+                # Recurse into nested dictionary
+                items.update(flatten_dict(value, new_key, separator))
+            elif isinstance(value, list):
+                # Handle lists with index notation
+                for i, item in enumerate(value):
+                    if isinstance(item, dict):
+                        items.update(flatten_dict(item, f"{new_key}[{i}]", separator))
+                    else:
+                        items[f"{new_key}[{i}]"] = item
+            else:
+                # Base case: simple value
+                items[new_key] = value
+
+    return items
+
+
+# Example
+address_data = {
+    "address": {
+        "road": "Xinyi Road",
+        "city": "Taipei",
+        "country": "Taiwan",
+        "details": {
+            "postcode": "110",
+            "district": "Xinyi"
+        }
+    }
+}
+
+flat = flatten_dict(address_data)
+for key, value in flat.items():
+    print(f"{key}: {value}")
+
+# Output:
+# address.road: Xinyi Road
+# address.city: Taipei
+# address.country: Taiwan
+# address.details.postcode: 110
+# address.details.district: Xinyi
+```
+
+### Counting Nesting Depth
+
+How deep is your JSON nested? Recursion makes this easy:
+
+```python
+def max_depth(data):
+    """
+    Find the maximum nesting depth of a data structure.
+
+    Args:
+        data: A dictionary, list, or value
+
+    Returns:
+        Integer depth (1 for flat dict, higher for nested)
+    """
+    if isinstance(data, dict):
+        if not data:  # Empty dict
+            return 1
+        # Depth is 1 (for this level) plus max depth of children
+        return 1 + max(max_depth(v) for v in data.values())
+
+    elif isinstance(data, list):
+        if not data:  # Empty list
+            return 1
+        return 1 + max(max_depth(item) for item in data)
+
+    else:
+        # Base case: simple value has depth 0
+        return 0
+
+
+# Examples
+print(max_depth({"a": 1}))                     # 1
+print(max_depth({"a": {"b": 2}}))              # 2
+print(max_depth({"a": {"b": {"c": 3}}}))       # 3
+print(max_depth(sample_response))              # 4
+```
+
+---
+
+## 2.6 Mini-Exercise: Recursive Key Search
+
+Write a recursive function that finds the path to a value in nested JSON:
+
+```python
+def find_path(data, target_value, current_path=""):
+    """
+    Find the path to a target value in nested data.
+
+    Args:
+        data: Nested dictionary/list
+        target_value: The value to find
+        current_path: Path so far (used in recursion)
+
+    Returns:
+        Path string like "address.city" or None if not found
+
+    Example:
+        >>> data = {"a": {"b": {"c": "found me!"}}}
+        >>> find_path(data, "found me!")
+        'a.b.c'
+    """
+    # TODO: Implement this function
+    pass
+
+
+# Test cases
+test_data = {
+    "name": "Taipei 101",
+    "location": {
+        "city": "Taipei",
+        "coordinates": {
+            "lat": 25.0339,
+            "lon": 121.5645
+        }
+    }
+}
+
+print(find_path(test_data, "Taipei"))      # Should print: location.city
+print(find_path(test_data, 25.0339))       # Should print: location.coordinates.lat
+print(find_path(test_data, "Not here"))    # Should print: None
+```
+
+<details>
+<summary>Solution</summary>
+
+```python
+def find_path(data, target_value, current_path=""):
+    """Find the path to a target value in nested data."""
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            # Build the new path
+            new_path = f"{current_path}.{key}" if current_path else key
+
+            # Check if this value matches
+            if value == target_value:
+                return new_path
+
+            # Recursively search in nested structures
+            result = find_path(value, target_value, new_path)
+            if result is not None:
+                return result
+
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            new_path = f"{current_path}[{i}]"
+
+            if item == target_value:
+                return new_path
+
+            result = find_path(item, target_value, new_path)
+            if result is not None:
+                return result
+
+    # Base case: value not found in this branch
+    return None
+```
+
+</details>
+
+---
+
+## 2.7 Parsing Nominatim Results Robustly
 
 Now let's build a complete, robust parser for Nominatim results:
 
@@ -983,7 +1355,7 @@ def parse_nominatim_response(response_data: list) -> list[GeocodedPlace]:
 
 ---
 
-## 2.5 Mini-Exercise 2: Handle Missing Data
+## 2.8 Mini-Exercise: Handle Missing Data
 
 Write a function that formats an address from a Nominatim result, handling all possible missing fields:
 
@@ -1126,7 +1498,7 @@ for i, case in enumerate(test_cases):
 
 ---
 
-## 2.6 Working with Bounding Boxes
+## 2.9 Working with Bounding Boxes
 
 Nominatim returns bounding boxes as a list of strings:
 
@@ -1235,324 +1607,98 @@ Stretch, grab water, check your phone!
 
 # Hour 3: Error Handling and Building a CLI Tool
 
-## 3.1 Why Error Handling Matters
+## 3.1 Error Handling Essentials
 
-In the previous hour, we learned to handle **missing data**. Now we'll handle **runtime errors** - things that go wrong when our code executes:
-
-- Network connection fails
-- API returns an error
-- User enters invalid input
-- File doesn't exist
-- Server is overloaded
-
-**Without error handling**: Your program crashes and the user sees a scary traceback.
-
-**With error handling**: Your program recovers gracefully and shows a helpful message.
-
----
-
-## 3.2 Python Error Handling Fundamentals
+When working with APIs, many things can go wrong. Good error handling keeps your program running and gives users helpful feedback.
 
 ### The `try/except` Statement
 
 ```python
 try:
-    # Code that might fail
     result = risky_operation()
 except SomeError:
-    # Code to handle the error
     print("Something went wrong")
-```
-
-**How it works:**
-1. Python tries to execute the code in the `try` block
-2. If an error occurs, Python stops and looks for a matching `except` block
-3. If found, it executes that block instead of crashing
-4. If not found, the program crashes as usual
-
-### Simple Example
-
-```python
-# Without error handling - crashes on invalid input
-number = int(input("Enter a number: "))  # If user types "abc" -> ValueError
-
-# With error handling - gracefully handles invalid input
-try:
-    number = int(input("Enter a number: "))
-    print(f"You entered: {number}")
-except ValueError:
-    print("That's not a valid number!")
 ```
 
 ### Catching Multiple Exceptions
 
-You can handle different errors differently:
-
 ```python
 try:
+    response = requests.get(url, timeout=10)
     data = response.json()
-    value = data["key"]
+    result = data[0]["lat"]
+
+except requests.exceptions.Timeout:
+    print("Request timed out")
+
+except requests.exceptions.ConnectionError:
+    print("Connection failed")
 
 except json.JSONDecodeError:
-    # The response wasn't valid JSON
     print("Invalid JSON response")
 
-except KeyError:
-    # The JSON was valid but missing our key
-    print("Key not found in response")
+except (KeyError, IndexError):
+    print("Unexpected response format")
 
 except Exception as e:
-    # Catch-all for any other error
     print(f"Unexpected error: {e}")
-```
-
-**Order matters!** Python checks `except` blocks top to bottom.
-
-### The Exception Hierarchy
-
-Python exceptions form a hierarchy. More specific exceptions inherit from general ones:
-
-```
-Exception (base class)
-├── ValueError (invalid value)
-├── TypeError (wrong type)
-├── KeyError (missing dict key)
-├── IndexError (list index out of range)
-├── requests.exceptions.RequestException (base for requests errors)
-│   ├── requests.exceptions.Timeout
-│   ├── requests.exceptions.ConnectionError
-│   └── requests.exceptions.HTTPError
-└── ... many more
 ```
 
 **Best practice**: Catch specific exceptions, not just `Exception`.
 
-```python
-# BAD - catches everything, hides bugs
-try:
-    something()
-except Exception:
-    pass  # Silently ignore all errors
-
-# GOOD - catches only what we expect
-try:
-    something()
-except ValueError:
-    handle_value_error()
-except KeyError:
-    handle_missing_key()
-```
-
-### The Full `try/except/else/finally` Structure
+### The `try/except/else/finally` Structure
 
 ```python
 try:
-    # Code that might fail
-    file = open("data.json")
-    data = json.load(file)
-
+    data = json.load(open("data.json"))
 except FileNotFoundError:
-    # Handle missing file
-    print("File not found")
     data = {}
-
-except json.JSONDecodeError:
-    # Handle invalid JSON
-    print("Invalid JSON in file")
-    data = {}
-
 else:
-    # Only runs if NO exception occurred
-    # Good place for code that depends on success
-    print(f"Successfully loaded {len(data)} items")
-
+    # Only runs if NO exception
+    print(f"Loaded {len(data)} items")
 finally:
-    # ALWAYS runs, even if there was an exception
-    # Good place for cleanup (closing files, connections)
-    if 'file' in locals():
-        file.close()
-        print("File closed")
+    # ALWAYS runs - good for cleanup
+    print("Done")
 ```
-
-**When to use each block:**
-
-| Block | When it runs | Use for |
-|-------|--------------|---------|
-| `try` | Always attempted | Code that might fail |
-| `except` | Only on matching error | Error handling |
-| `else` | Only if no error | Success-dependent code |
-| `finally` | Always, after try/except | Cleanup (close files, etc.) |
 
 ---
 
-## 3.3 Common API-Related Exceptions
+## 3.2 Common API Errors and How to Handle Them
 
-### Network Exceptions (from `requests`)
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Timeout` | Server too slow | Retry or show message |
+| `ConnectionError` | No internet | Check connection |
+| `HTTPError 403` | Forbidden | Check User-Agent |
+| `HTTPError 429` | Rate limited | Slow down requests |
+| `JSONDecodeError` | Invalid response | Handle gracefully |
+| `KeyError` | Missing field | Use `.get()` with defaults |
+
+### Complete Error Handling Pattern
 
 ```python
 import requests
+import json
 
-try:
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()  # Raises HTTPError for 4xx/5xx
-
-except requests.exceptions.Timeout:
-    # The server took too long to respond
-    print("Request timed out - server might be slow")
-
-except requests.exceptions.ConnectionError:
-    # Couldn't connect at all (no internet, wrong URL, etc.)
-    print("Connection failed - check your internet")
-
-except requests.exceptions.HTTPError as e:
-    # Server returned an error status (4xx or 5xx)
-    print(f"HTTP error: {e.response.status_code}")
-    if e.response.status_code == 403:
-        print("Forbidden - check your User-Agent header")
-    elif e.response.status_code == 429:
-        print("Rate limited - slow down!")
-
-except requests.exceptions.RequestException as e:
-    # Base class catches all requests errors
-    print(f"Request failed: {e}")
-```
-
-### Data Parsing Exceptions
-
-```python
-try:
-    # Parse the JSON response
-    data = response.json()
-
-    # Access nested data
-    result = data[0]
-    lat = float(result["lat"])
-    name = result["address"]["city"]
-
-except json.JSONDecodeError:
-    # Response body wasn't valid JSON
-    print("Server returned invalid JSON")
-
-except IndexError:
-    # Tried to access data[0] but list was empty
-    print("No results found")
-
-except KeyError as e:
-    # Dictionary was missing a key
-    print(f"Response missing expected field: {e}")
-
-except TypeError:
-    # Tried to access something that was None
-    # e.g., result["address"] returned None, then ["city"] fails
-    print("Unexpected data structure")
-
-except ValueError:
-    # float() conversion failed
-    # e.g., float("not a number")
-    print("Invalid coordinate format")
-```
-
----
-
-## 3.4 Designing Custom Exception Classes
-
-For larger applications, create custom exceptions that describe your domain:
-
-```python
-class GeocodingError(Exception):
-    """
-    Base exception for all geocoding-related errors.
-
-    By creating a hierarchy of exceptions, calling code can:
-    - Catch all geocoding errors with `except GeocodingError`
-    - Catch specific errors with `except NotFoundError`
-    """
-    pass
-
-
-class NetworkError(GeocodingError):
-    """
-    Raised when a network request fails.
-
-    Examples:
-    - Connection timeout
-    - DNS resolution failure
-    - Server returned 5xx error
-    """
-    pass
-
-
-class RateLimitError(GeocodingError):
-    """
-    Raised when we've made too many requests.
-
-    Nominatim allows 1 request per second.
-    If exceeded, server returns 429 status.
-    """
-    pass
-
-
-class NotFoundError(GeocodingError):
-    """
-    Raised when the place cannot be found.
-
-    The API worked but returned no results.
-    """
-    pass
-
-
-class ParseError(GeocodingError):
-    """
-    Raised when we can't parse the API response.
-
-    The response structure was unexpected.
-    """
-    pass
-```
-
-### Using Custom Exceptions
-
-```python
 def geocode(query: str) -> dict:
-    """
-    Geocode a place name to coordinates.
-
-    Args:
-        query: Place name to search for
-
-    Returns:
-        Dictionary with name, lat, lon
-
-    Raises:
-        NetworkError: If the API request fails
-        RateLimitError: If rate limit exceeded
-        NotFoundError: If place not found
-        ParseError: If response can't be parsed
-    """
+    """Geocode with comprehensive error handling."""
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": query, "format": "json", "limit": 1}
     headers = {"User-Agent": "CS101/1.0 (test@example.com)"}
 
     try:
-        # Make the request
         response = requests.get(url, params=params, headers=headers, timeout=10)
 
-        # Check for rate limiting (429 status)
+        # Handle HTTP errors
         if response.status_code == 429:
-            raise RateLimitError("Too many requests. Please wait.")
-
-        # Check for other HTTP errors
+            return {"error": "Rate limited - slow down"}
         if response.status_code != 200:
-            raise NetworkError(f"HTTP {response.status_code}")
+            return {"error": f"HTTP {response.status_code}"}
 
-        # Parse response
         data = response.json()
-
-        # Check for empty results
         if not data:
-            raise NotFoundError(f"No results for: {query}")
+            return {"error": f"No results for: {query}"}
 
-        # Extract and return data
         result = data[0]
         return {
             "name": result.get("name", query),
@@ -1562,617 +1708,194 @@ def geocode(query: str) -> dict:
         }
 
     except requests.exceptions.Timeout:
-        raise NetworkError("Request timed out")
-
+        return {"error": "Request timed out"}
     except requests.exceptions.ConnectionError:
-        raise NetworkError("Connection failed")
-
-    except requests.exceptions.RequestException as e:
-        raise NetworkError(f"Request failed: {e}")
-
-    except (KeyError, IndexError, ValueError) as e:
-        raise ParseError(f"Failed to parse response: {e}")
-
-
-# Using the function with error handling
-try:
-    result = geocode("Taipei 101")
-    print(f"Found: {result['name']} at ({result['lat']}, {result['lon']})")
-
-except NotFoundError:
-    print("Place not found. Try a different search term.")
-
-except RateLimitError:
-    print("Too many requests. Wait a moment and try again.")
-
-except NetworkError as e:
-    print(f"Network problem: {e}")
-
-except GeocodingError as e:
-    # Catch-all for any geocoding error we didn't specifically handle
-    print(f"Geocoding failed: {e}")
+        return {"error": "Connection failed"}
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return {"error": f"Parse error: {e}"}
 ```
-
-### Benefits of Custom Exceptions
-
-1. **Clarity**: `NotFoundError` is clearer than `ValueError`
-2. **Hierarchy**: Can catch all geocoding errors or specific ones
-3. **Documentation**: Docstrings explain when each is raised
-4. **Separation**: Network errors vs data errors vs business logic errors
 
 ---
 
-## 3.5 Mini-Exercise 3: Error Handling Practice
+## 3.3 Mini-Exercise: Error Handling Practice
 
-Add proper error handling to this function:
+Add error handling to this function:
 
 ```python
-import requests
-
 def get_coordinates(place_name: str) -> tuple[float, float]:
-    """
-    Get coordinates for a place name.
-
-    Should handle:
-    - Network errors (timeout, connection failure)
-    - Empty results
-    - Missing or invalid lat/lon
-
-    Returns:
-        Tuple of (latitude, longitude)
-
-    Raises:
-        ValueError: If place not found or data invalid
-        ConnectionError: If network request fails
-    """
+    """Get coordinates for a place name."""
     url = "https://nominatim.openstreetmap.org/search"
     headers = {"User-Agent": "CS101/1.0 (test@example.com)"}
     params = {"q": place_name, "format": "json", "limit": 1}
 
-    # Currently has no error handling!
+    # No error handling - will crash on any problem!
     response = requests.get(url, params=params, headers=headers, timeout=10)
     data = response.json()
     result = data[0]
-    lat = float(result["lat"])
-    lon = float(result["lon"])
-    return (lat, lon)
+    return (float(result["lat"]), float(result["lon"]))
 ```
 
-**Errors to handle:**
-1. Network timeout
-2. Connection failure
-3. HTTP error status
-4. Empty results (no places found)
-5. Missing lat/lon fields
-6. Invalid lat/lon values (can't convert to float)
+Handle: timeout, connection errors, empty results, missing/invalid coordinates.
 
 <details>
 <summary>Solution</summary>
 
 ```python
-import requests
-
-def get_coordinates(place_name: str) -> tuple[float, float]:
-    """
-    Get coordinates for a place name with robust error handling.
-    """
+def get_coordinates(place_name: str) -> tuple[float, float] | None:
+    """Get coordinates with error handling."""
     url = "https://nominatim.openstreetmap.org/search"
     headers = {"User-Agent": "CS101/1.0 (test@example.com)"}
     params = {"q": place_name, "format": "json", "limit": 1}
 
     try:
-        # Make the request with timeout
-        response = requests.get(
-            url, params=params, headers=headers, timeout=10
-        )
+        response = requests.get(url, params=params, headers=headers, timeout=10)
 
-        # Check HTTP status code
         if response.status_code != 200:
-            raise ConnectionError(f"HTTP error: {response.status_code}")
+            print(f"HTTP error: {response.status_code}")
+            return None
 
-        # Parse JSON response
         data = response.json()
-
-        # Check for empty results
         if not data:
-            raise ValueError(f"No results found for: {place_name}")
+            print(f"No results for: {place_name}")
+            return None
 
-        # Get first result
         result = data[0]
-
-        # Check that lat/lon exist
-        if "lat" not in result or "lon" not in result:
-            raise ValueError("Response missing coordinates")
-
-        # Convert to floats (might fail if values are malformed)
-        lat = float(result["lat"])
-        lon = float(result["lon"])
-
-        return (lat, lon)
+        return (float(result["lat"]), float(result["lon"]))
 
     except requests.exceptions.Timeout:
-        # Server didn't respond in time
-        raise ConnectionError("Request timed out")
-
+        print("Request timed out")
     except requests.exceptions.ConnectionError:
-        # Couldn't establish connection
-        raise ConnectionError("Network connection failed")
+        print("Connection failed")
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        print(f"Parse error: {e}")
 
-    except requests.exceptions.RequestException as e:
-        # Any other requests error
-        raise ConnectionError(f"Request failed: {e}")
-
-    except json.JSONDecodeError:
-        # Response wasn't valid JSON
-        raise ValueError("Server returned invalid response")
-
-    except (KeyError, IndexError) as e:
-        # Data structure wasn't as expected
-        raise ValueError(f"Unexpected response format: {e}")
-
-
-# Test the function
-import time
-
-test_queries = [
-    "Taipei 101",              # Should work
-    "xyzzy12345notaplace",     # Should raise ValueError (not found)
-]
-
-for query in test_queries:
-    print(f"\nSearching for: {query}")
-    try:
-        coords = get_coordinates(query)
-        print(f"  Found: {coords}")
-    except ValueError as e:
-        print(f"  Not found: {e}")
-    except ConnectionError as e:
-        print(f"  Network error: {e}")
-
-    time.sleep(1)  # Rate limiting
+    return None
 ```
 
 </details>
 
 ---
 
-## 3.6 Building the Complete CLI Geocoder
+## 3.4 Building a Simple CLI Geocoder
 
-Now let's put everything together into a complete, production-quality CLI tool:
+Here's a complete interactive geocoder that puts everything together:
 
 ```python
 #!/usr/bin/env python3
-"""
-Geocoder CLI - Convert place names to coordinates.
-
-A complete command-line geocoding tool demonstrating:
-- API integration with Nominatim
-- Robust error handling
-- Response caching
-- Interactive and batch modes
-
-Usage:
-    python geocoder_cli.py                    # Interactive mode
-    python geocoder_cli.py "Taipei 101"       # Quick geocode
-    python geocoder_cli.py --reverse 25.03 121.56  # Reverse geocode
-"""
+"""Simple Geocoder CLI - Convert place names to coordinates."""
 
 import requests
-import sys
 import time
-import json
-from pathlib import Path
 
-
-# =============================================================================
-# Configuration
-# =============================================================================
-
-CONFIG = {
-    "user_agent": "CS101-Geocoder/1.0 (cs101@university.edu)",
-    "base_url": "https://nominatim.openstreetmap.org",
-    "timeout": 10,
-    "cache_file": ".geocache.json"
-}
-
-
-# =============================================================================
-# Custom Exceptions
-# =============================================================================
-
-class GeocoderError(Exception):
-    """Base exception for geocoder errors."""
-    pass
-
-
-class NetworkError(GeocoderError):
-    """Network-related errors (timeout, connection, HTTP errors)."""
-    pass
-
-
-class NotFoundError(GeocoderError):
-    """Place not found in the database."""
-    pass
-
-
-# =============================================================================
-# Cache Functions
-# =============================================================================
-# Caching avoids repeated API calls for the same query.
-# This is polite (reduces server load) and fast (instant results).
-
-def load_cache() -> dict:
-    """
-    Load the cache from disk.
-
-    Returns empty dict if file doesn't exist or is corrupted.
-    """
-    cache_path = Path(CONFIG["cache_file"])
-    if cache_path.exists():
-        try:
-            return json.loads(cache_path.read_text())
-        except (json.JSONDecodeError, IOError):
-            return {}
-    return {}
-
-
-def save_cache(cache: dict):
-    """
-    Save the cache to disk.
-
-    Silently fails if write fails (cache is not critical).
-    """
-    cache_path = Path(CONFIG["cache_file"])
-    try:
-        cache_path.write_text(json.dumps(cache, indent=2))
-    except IOError:
-        pass  # Cache save failure is not critical
-
-
-def get_cached(query: str) -> dict | None:
-    """Get a cached result for a query (case-insensitive)."""
-    cache = load_cache()
-    return cache.get(query.lower())
-
-
-def set_cached(query: str, result: dict):
-    """Cache a result (case-insensitive key)."""
-    cache = load_cache()
-    cache[query.lower()] = result
-    save_cache(cache)
-
-
-# =============================================================================
-# Geocoding Functions
-# =============================================================================
-
-def geocode(query: str, use_cache: bool = True) -> dict:
-    """
-    Convert a place name to coordinates.
-
-    This is the main geocoding function. It:
-    1. Checks the cache first (if enabled)
-    2. Makes an API request to Nominatim
-    3. Parses and validates the response
-    4. Caches the result (if enabled)
-
-    Args:
-        query: Place name to search for
-        use_cache: Whether to check/update cache
-
-    Returns:
-        Dictionary with:
-        - name: Short name of the place
-        - lat: Latitude (float)
-        - lon: Longitude (float)
-        - display_name: Full formatted address
-        - type: Place classification
-        - cached: Whether result came from cache
-
-    Raises:
-        NotFoundError: If no results found
-        NetworkError: If API request fails
-        GeocoderError: If response can't be parsed
-    """
-    # Step 1: Check cache
-    if use_cache:
-        cached = get_cached(query)
-        if cached:
-            cached["cached"] = True
-            return cached
-
-    # Step 2: Build and make API request
-    url = f"{CONFIG['base_url']}/search"
-    params = {
-        "q": query,
-        "format": "json",
-        "limit": 1,
-        "addressdetails": 1
-    }
-    headers = {"User-Agent": CONFIG["user_agent"]}
+def geocode(query: str) -> dict | None:
+    """Geocode a place name with error handling."""
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {"q": query, "format": "json", "limit": 1}
+    headers = {"User-Agent": "CS101-Geocoder/1.0 (cs101@university.edu)"}
 
     try:
-        response = requests.get(
-            url, params=params, headers=headers,
-            timeout=CONFIG["timeout"]
-        )
-
-        # Step 3: Handle HTTP errors
-        if response.status_code == 429:
-            raise NetworkError("Rate limit exceeded. Wait and try again.")
+        response = requests.get(url, params=params, headers=headers, timeout=10)
 
         if response.status_code != 200:
-            raise NetworkError(f"HTTP {response.status_code}")
+            print(f"  HTTP error: {response.status_code}")
+            return None
 
-        # Step 4: Parse response
         data = response.json()
-
         if not data:
-            raise NotFoundError(f"No results for: {query}")
+            print(f"  No results for: {query}")
+            return None
 
-        # Step 5: Extract and validate data
         result = data[0]
-        parsed = {
+        return {
             "name": result.get("name", query),
             "lat": float(result["lat"]),
             "lon": float(result["lon"]),
-            "display_name": result.get("display_name", ""),
-            "type": f"{result.get('class', '')}:{result.get('type', '')}",
-            "cached": False
+            "display_name": result.get("display_name", "")
         }
-
-        # Step 6: Cache the result
-        if use_cache:
-            set_cached(query, parsed)
-
-        return parsed
 
     except requests.exceptions.Timeout:
-        raise NetworkError("Request timed out")
+        print("  Request timed out")
     except requests.exceptions.ConnectionError:
-        raise NetworkError("Connection failed")
-    except requests.exceptions.RequestException as e:
-        raise NetworkError(f"Request failed: {e}")
-    except (KeyError, ValueError, TypeError) as e:
-        raise GeocoderError(f"Failed to parse response: {e}")
+        print("  Connection failed")
+    except (KeyError, ValueError) as e:
+        print(f"  Parse error: {e}")
+
+    return None
 
 
-def reverse_geocode(lat: float, lon: float) -> dict:
-    """
-    Convert coordinates to an address.
+def main():
+    """Run the interactive geocoder."""
+    print("\n=== Geocoder CLI ===")
+    print("Enter a place name, or 'quit' to exit.\n")
 
-    Args:
-        lat: Latitude
-        lon: Longitude
-
-    Returns:
-        Dictionary with:
-        - display_name: Full formatted address
-        - address: Structured address components
-        - lat, lon: The input coordinates
-
-    Raises:
-        NotFoundError: If location not in database
-        NetworkError: If API request fails
-    """
-    url = f"{CONFIG['base_url']}/reverse"
-    params = {
-        "lat": lat,
-        "lon": lon,
-        "format": "json",
-        "addressdetails": 1
-    }
-    headers = {"User-Agent": CONFIG["user_agent"]}
-
-    try:
-        response = requests.get(
-            url, params=params, headers=headers,
-            timeout=CONFIG["timeout"]
-        )
-
-        if response.status_code != 200:
-            raise NetworkError(f"HTTP {response.status_code}")
-
-        data = response.json()
-
-        if "error" in data:
-            raise NotFoundError(data["error"])
-
-        return {
-            "display_name": data.get("display_name", "Unknown"),
-            "address": data.get("address", {}),
-            "lat": lat,
-            "lon": lon
-        }
-
-    except requests.exceptions.RequestException as e:
-        raise NetworkError(f"Request failed: {e}")
-
-
-# =============================================================================
-# Display Functions
-# =============================================================================
-
-def print_result(result: dict):
-    """Pretty print a forward geocoding result."""
-    print()
-    print(f"  Name: {result.get('name', 'N/A')}")
-    print(f"  Coordinates: ({result['lat']:.6f}, {result['lon']:.6f})")
-    print(f"  Full address: {result.get('display_name', 'N/A')}")
-    if result.get("type") and result["type"] != ":":
-        print(f"  Type: {result['type']}")
-    if result.get("cached"):
-        print("  (from cache)")
-    print()
-
-
-def print_reverse_result(result: dict):
-    """Pretty print a reverse geocoding result."""
-    print()
-    print(f"  Address: {result['display_name']}")
-    print(f"  Coordinates: ({result['lat']:.6f}, {result['lon']:.6f})")
-
-    address = result.get("address", {})
-    if address:
-        print("  Components:")
-        for key, value in list(address.items())[:10]:  # Limit to 10 items
-            print(f"    {key}: {value}")
-    print()
-
-
-# =============================================================================
-# CLI Interface
-# =============================================================================
-
-def interactive_mode():
-    """
-    Run the geocoder in interactive mode.
-
-    Provides a REPL (Read-Eval-Print Loop) for geocoding.
-    """
-    print("\n" + "="*50)
-    print("  Geocoder CLI - Interactive Mode")
-    print("="*50)
-    print("\nCommands:")
-    print("  <place name>          - Search for a place")
-    print("  reverse <lat> <lon>   - Reverse geocode")
-    print("  quit                  - Exit")
-    print()
-
-    last_request = 0  # For rate limiting
+    last_request = 0
 
     while True:
-        # Get user input
         try:
-            user_input = input("geocoder> ").strip()
+            query = input("geocoder> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
             break
 
-        # Skip empty input
-        if not user_input:
+        if not query:
             continue
 
-        # Handle quit command
-        if user_input.lower() in ("quit", "exit", "q"):
+        if query.lower() in ("quit", "exit", "q"):
             print("Goodbye!")
             break
 
-        # Rate limiting: ensure at least 1 second between API calls
+        # Rate limiting
         elapsed = time.time() - last_request
         if elapsed < 1 and last_request > 0:
             time.sleep(1 - elapsed)
 
-        # Handle reverse geocoding
-        if user_input.lower().startswith("reverse "):
-            parts = user_input.split()
-            if len(parts) != 3:
-                print("Usage: reverse <lat> <lon>")
-                print("Example: reverse 25.0339 121.5645")
-                continue
+        result = geocode(query)
+        last_request = time.time()
 
-            try:
-                lat = float(parts[1])
-                lon = float(parts[2])
-                result = reverse_geocode(lat, lon)
-                print_reverse_result(result)
-                last_request = time.time()
-            except ValueError:
-                print("Invalid coordinates. Example: reverse 25.0339 121.5645")
-            except GeocoderError as e:
-                print(f"Error: {e}")
-            continue
-
-        # Handle forward geocoding (default)
-        try:
-            result = geocode(user_input)
-            print_result(result)
-            last_request = time.time()
-        except NotFoundError as e:
-            print(f"Not found: {e}")
-        except NetworkError as e:
-            print(f"Network error: {e}")
-        except GeocoderError as e:
-            print(f"Error: {e}")
-
-
-def main():
-    """
-    Main entry point.
-
-    Handles command-line arguments or starts interactive mode.
-    """
-    if len(sys.argv) > 1:
-        # Command-line mode
-        if sys.argv[1] == "--reverse" and len(sys.argv) == 4:
-            # Reverse geocoding
-            try:
-                lat = float(sys.argv[2])
-                lon = float(sys.argv[3])
-                result = reverse_geocode(lat, lon)
-                print_reverse_result(result)
-            except ValueError:
-                print("Invalid coordinates")
-                sys.exit(1)
-            except GeocoderError as e:
-                print(f"Error: {e}")
-                sys.exit(1)
-        elif sys.argv[1] in ("--help", "-h"):
-            print(__doc__)
-        else:
-            # Forward geocoding
-            query = " ".join(sys.argv[1:])
-            try:
-                result = geocode(query)
-                print_result(result)
-            except GeocoderError as e:
-                print(f"Error: {e}")
-                sys.exit(1)
-    else:
-        # Interactive mode
-        interactive_mode()
+        if result:
+            print(f"\n  Name: {result['name']}")
+            print(f"  Coordinates: ({result['lat']:.6f}, {result['lon']:.6f})")
+            print(f"  Address: {result['display_name']}\n")
 
 
 if __name__ == "__main__":
     main()
 ```
 
----
+### Example Session
+```
+=== Geocoder CLI ===
+Enter a place name, or 'quit' to exit.
 
-## 3.7 Best Practices Summary
+geocoder> Taipei 101
 
-### Error Handling Best Practices
+  Name: 台北101
+  Coordinates: (25.033964, 121.564472)
+  Address: 台北101, 7, Section 5, Xinyi Road, Xinyi District, Taipei, Taiwan
 
-| Practice | Why | Example |
-|----------|-----|---------|
-| **Be Specific** | Different errors need different handling | `except ValueError` not `except Exception` |
-| **Fail Fast** | Catch errors early | Validate inputs at function start |
-| **Provide Context** | Help debugging | `raise ValueError(f"Invalid lat: {lat}")` |
-| **Don't Silence Errors** | Hidden errors cause bugs | Log errors, don't just `pass` |
-| **Use Custom Exceptions** | Clear, domain-specific | `NotFoundError`, `RateLimitError` |
+geocoder> xyznotaplace
+  No results for: xyznotaplace
 
-### API Integration Best Practices
-
-| Practice | Why | Implementation |
-|----------|-----|----------------|
-| **Set Timeouts** | Don't hang forever | `timeout=10` |
-| **Respect Rate Limits** | Avoid getting banned | `time.sleep(1)` between requests |
-| **Cache Results** | Reduce load, speed up | File or memory cache |
-| **Validate Responses** | Don't trust API blindly | Check status codes and data |
-| **Handle All Errors** | Graceful degradation | Network, parsing, and logic errors |
-
-### Data Parsing Best Practices
-
-| Practice | Why | Example |
-|----------|-----|---------|
-| **Use `.get()`** | Avoid KeyError | `result.get("key", default)` |
-| **Convert Types** | APIs return strings | `float(result["lat"])` |
-| **Validate Data** | Catch bad data early | Check for required fields |
-| **Handle Missing** | Data is incomplete | Fallback values |
+geocoder> quit
+Goodbye!
+```
 
 ---
 
-## 3.8 Homework Assignments
+## 3.5 Best Practices Summary
+
+| Category | Practice | Example |
+|----------|----------|---------|
+| **Errors** | Catch specific exceptions | `except ValueError` not `except Exception` |
+| **Errors** | Provide context in messages | `f"No results for: {query}"` |
+| **API** | Always set timeouts | `timeout=10` |
+| **API** | Respect rate limits | `time.sleep(1)` between requests |
+| **Parsing** | Use `.get()` with defaults | `result.get("key", "default")` |
+| **Parsing** | Convert string types | `float(result["lat"])` |
+
+---
+
+## 3.6 Homework Assignments
 
 ### Assignment 1: Batch Geocoder (Basic)
 Create a script that:

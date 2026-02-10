@@ -55,7 +55,7 @@ Every week introduces a new Python concept specifically required to build the ne
 | Week | Lecture | Lab |
 |------|---------|-----|
 | 4 (3/17 Tue., 3/19 Thu.) | **HTTP Requests & API Keys** — Request/Response cycle, Status Codes (200 vs 403), User-Agent Headers. Make calls to Nominatim API using `requests`. | |
-| 5 (3/24 Tue., 3/26 Thu.) | **The Nominatim API (Geocoding)** — Parsing nested JSON, Error Handling (`try/except`). Build a CLI geocoding tool. | |
+| 5 (3/24 Tue., 3/26 Thu.) | **The Nominatim API (Geocoding)** — Parsing nested JSON, Recursion, Error Handling (`try/except`). Build a CLI geocoding tool. | |
 | 6 (3/31 Tue., 4/2 Thu.) | **Searching for Places (Lazy Loading)** — Query parameters, Pagination, Generators (`yield`). Handle API pagination efficiently. | |
 | 7 (4/7 Tue., 4/9 Thu.) | **Midterm Exam 1 (Tue. & Thu.)** | |
 | 8 (4/14 Tue., 4/16 Thu.) | **OSRM API (Real Routing)** — 2D Lists (Matrices), Cost comparison. Compare Haversine vs OSRM distance, fetch route geometry. | |
