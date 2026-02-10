@@ -6,6 +6,7 @@
 
 ## Concepts
 - Parsing complex nested JSON responses
+- Recursion (traversing nested data structures)
 - Error Handling (`try/except`)
 - Geocoding (converting addresses to coordinates)
 
