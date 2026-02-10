@@ -113,7 +113,96 @@ All safe_get tests passed!
 
 ---
 
-## Exercise 2: Parse Nominatim Response (15 minutes)
+## Exercise 2: Recursive JSON Traversal (15 minutes)
+
+### Task
+Create a recursive function that finds all values for a given key anywhere in a nested data structure.
+
+### Requirements
+1. Handle nested dictionaries (any depth)
+2. Handle lists containing dictionaries
+3. Return all found values in a flat list
+
+### Starter Code
+
+```python
+def find_all_values(data, target_key: str) -> list:
+    """
+    Recursively find all values for a given key in nested data.
+
+    Args:
+        data: A dictionary, list, or value
+        target_key: The key to search for
+
+    Returns:
+        List of all values found for that key
+
+    Examples:
+        >>> data = {"name": "A", "nested": {"name": "B"}}
+        >>> find_all_values(data, "name")
+        ['A', 'B']
+
+        >>> data = {"items": [{"id": 1}, {"id": 2}]}
+        >>> find_all_values(data, "id")
+        [1, 2]
+    """
+    # TODO: Implement this function
+    # Hint: Use isinstance() to check types
+    # Hint: For dicts, check each key and recurse into values
+    # Hint: For lists, recurse into each item
+    pass
+
+
+# Test cases
+def test_find_all_values():
+    # Simple case
+    data1 = {"name": "Taipei 101"}
+    assert find_all_values(data1, "name") == ["Taipei 101"], "Test 1 failed"
+
+    # Nested case
+    data2 = {
+        "name": "Outer",
+        "child": {
+            "name": "Inner"
+        }
+    }
+    assert find_all_values(data2, "name") == ["Outer", "Inner"], "Test 2 failed"
+
+    # List case
+    data3 = {
+        "places": [
+            {"name": "Place A"},
+            {"name": "Place B"},
+            {"name": "Place C"}
+        ]
+    }
+    assert find_all_values(data3, "name") == ["Place A", "Place B", "Place C"], "Test 3 failed"
+
+    # Deep nesting
+    data4 = {
+        "level1": {
+            "level2": {
+                "level3": {
+                    "target": "found!"
+                }
+            }
+        }
+    }
+    assert find_all_values(data4, "target") == ["found!"], "Test 4 failed"
+
+    # Key not found
+    assert find_all_values(data1, "missing") == [], "Test 5 failed"
+
+    print("All find_all_values tests passed!")
+
+
+if __name__ == "__main__":
+    test_find_all_values()
+```
+
+---
+
+## Exercise 3: Parse Nominatim Response (15 minutes)
 
 ### Task
 Create a function that parses a Nominatim search result into a clean, consistent format.
@@ -193,7 +282,7 @@ if __name__ == "__main__":
 
 ---
 
-## Exercise 3: Format Address (15 minutes)
+## Exercise 4: Format Address (15 minutes)
 
 ### Task
 Create a function that formats an address from a Nominatim result with `addressdetails`.
@@ -283,7 +372,7 @@ if __name__ == "__main__":
 
 ---
 
-## Exercise 4: Error Handling (20 minutes)
+## Exercise 5: Error Handling (15 minutes)
 
 ### Task
 Create a robust geocoding function with comprehensive error handling.
@@ -387,7 +476,7 @@ if __name__ == "__main__":
 
 ---
 
-## Exercise 5: Build a Geocoding Function Library (20 minutes)
+## Exercise 6: Build a Geocoding Function Library (15 minutes)
 
 ### Task
 Create a complete geocoding module with forward and reverse geocoding.
@@ -506,7 +595,7 @@ if __name__ == "__main__":
 
 ---
 
-## Exercise 6: Interactive CLI Geocoder (20 minutes)
+## Exercise 7: Interactive CLI Geocoder (15 minutes)
 
 ### Task
 Build a complete interactive command-line geocoder.
@@ -690,14 +779,15 @@ Before submitting, verify:
 | Exercise | Points | Criteria |
 |----------|--------|----------|
 | Exercise 1 | 15 | safe_get handles all cases |
-| Exercise 2 | 15 | parse_place extracts all fields correctly |
-| Exercise 3 | 15 | format_address handles all variations |
-| Exercise 4 | 20 | All error types handled correctly |
-| Exercise 5 | 15 | Geocoder class fully functional |
-| Exercise 6 | 20 | CLI works correctly |
-| Bonus | +15 | Caching implemented correctly |
+| Exercise 2 | 15 | find_all_values recursion works correctly |
+| Exercise 3 | 15 | parse_place extracts all fields correctly |
+| Exercise 4 | 15 | format_address handles all variations |
+| Exercise 5 | 15 | All error types handled correctly |
+| Exercise 6 | 10 | Geocoder class fully functional |
+| Exercise 7 | 15 | CLI works correctly |
+| Bonus | +10 | Caching implemented correctly |
 
-**Total: 100 points (+15 bonus)**
+**Total: 100 points (+10 bonus)**
 
 ---
 
